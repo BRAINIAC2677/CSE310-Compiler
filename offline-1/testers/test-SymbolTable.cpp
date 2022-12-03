@@ -26,9 +26,9 @@ int main()
     symbol_table.insert(SymbolInfo("b", "int"));
     cout << symbol_table << endl;
 
-    // testing look_up()
-    cout << "Look up a: " << (symbol_table.look_up("a")->get_name()) << endl;
-    cout << "Look up b: " << (symbol_table.look_up("b")->get_name()) << endl;
+    // testing lookup()
+    cout << "Look up a: " << (symbol_table.lookup("a")->get_name()) << endl;
+    cout << "Look up b: " << (symbol_table.lookup("b")->get_name()) << endl;
 
     // testing remove()
     cout << symbol_table.remove("b") << endl;

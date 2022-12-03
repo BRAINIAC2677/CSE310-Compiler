@@ -42,17 +42,17 @@ bool SymbolTable::remove(string symbol_name) noexcept
     return current_scope->remove(symbol_name);
 }
 
-SymbolInfo *SymbolTable::look_up(string symbol_name) const
+SymbolInfo *SymbolTable::lookup(string symbol_name) const
 {
     for (auto scope = current_scope; scope != nullptr; scope = scope->get_parent_scope())
     {
-        auto symbol_info_from_scope = scope->look_up(symbol_name);
-        if (symbol_info_from_scope != NOT_FOUND_SYMBOL_INFO)
+        auto symbol_info_from_scope = scope->lookup(symbol_name);
+        if (symbol_info_from_scope != NULL_SYMBOL_INFO)
         {
             return symbol_info_from_scope;
         }
     }
-    return NOT_FOUND_SYMBOL_INFO;
+    return NULL_SYMBOL_INFO;
 }
 
 tuple<int, int, int> SymbolTable::find_position(string symbol_name) const noexcept
@@ -66,11 +66,6 @@ tuple<int, int, int> SymbolTable::find_position(string symbol_name) const noexce
         }
     }
     return make_tuple(-1, -1, -1);
-}
-
-ostream &operator<(ostream &out, SymbolTable &symbol_table) noexcept
-{
-    return out << *(symbol_table.get_current_scope());
 }
 
 ostream &operator<<(ostream &out, SymbolTable &symbol_table) noexcept

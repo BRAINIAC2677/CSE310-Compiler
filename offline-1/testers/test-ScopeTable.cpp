@@ -20,9 +20,9 @@ int main()
     cout << scope_table << endl;
 
     // testing lookup
-    cout << scope_table.look_up("asif") << endl;
-    cout << scope_table.look_up("if") << endl;
-    cout << scope_table.look_up("ifas") << endl;
+    cout << scope_table.lookup("asif") << endl;
+    cout << scope_table.lookup("if") << endl;
+    cout << scope_table.lookup("ifas") << endl;
 
     // testing find_position
     cout << scope_table.find_position("asif").first << " " << scope_table.find_position("asif").second << endl;

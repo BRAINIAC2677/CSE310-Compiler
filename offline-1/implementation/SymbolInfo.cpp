@@ -1,5 +1,7 @@
 #include "SymbolInfo.hpp"
 
+SymbolInfo *NULL_SYMBOL_INFO = new SymbolInfo("nullptr", "nullptr");
+
 SymbolInfo::SymbolInfo(string name, string type, SymbolInfo *next_symbol_info) noexcept : name(name), type(type), next_symbol_info(next_symbol_info) {}
 
 SymbolInfo::~SymbolInfo() noexcept {}
@@ -33,5 +35,3 @@ void SymbolInfo::set_next_symbol_info(SymbolInfo *next_symbol_info) noexcept
 {
     this->next_symbol_info = next_symbol_info;
 }
-
-SymbolInfo *NOT_FOUND_SYMBOL_INFO = new SymbolInfo("nullptr", "nullptr");

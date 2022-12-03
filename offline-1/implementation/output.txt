@@ -76,7 +76,7 @@ Cmd 19: D ==
 Cmd 20: D 23
 	Not found in the current ScopeTable
 Cmd 21: D
-	Number of parameters mismatch for the  command D
+	Number of parameters mismatch for the command D
 Cmd 22: P A
 	ScopeTable# 2
 	1--> 

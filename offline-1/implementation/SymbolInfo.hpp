@@ -22,4 +22,4 @@ public:
     void set_next_symbol_info(SymbolInfo *next_symbol_info) noexcept;
 };
 
-extern SymbolInfo *NOT_FOUND_SYMBOL_INFO;
+extern SymbolInfo *NULL_SYMBOL_INFO;
