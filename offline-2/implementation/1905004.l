@@ -7,13 +7,18 @@
 
 %{
 
+#include "SymbolInfo.hpp"
+#include "SymbolTable.hpp"
+
 #include <bits/stdc++.h>
 using namespace std;
 
-int line_count=1, error_count = 0, string_line_count = 1;
+int line_count=1, error_count = 0, string_line_count = 1, comment_line_count = 1;
 string raw_char_text, char_text;
 string raw_string_text, string_text;
 string single_line_comment_text, multi_line_comment_text;
+
+SymbolTable symbol_table(10);
 
 ofstream logout;
 ofstream tokenout;
@@ -26,11 +31,17 @@ string uppercase(string s)
 
 %}
 
-WHITESPACE [ \t\f\r\v]+ 
 ALPHABET [a-zA-Z_]
 ALPHANUMERIC [a-zA-Z0-9_]
+ID {ALPHABET}{ALPHANUMERIC}*
+
+DIGIT [0-9]
 DIGITS ([0-9]+)
-EXPONENT (E[+,-]?[0-9]+)
+INT {DIGITS}
+EXPONENT ([E,e][+,-]?[0-9]+)
+FLOAT {DIGITS}{EXPONENT}|{DIGITS}?\.{DIGITS}{EXPONENT}?
+
+WHITESPACE [ \t\f\r\v]+ 
 NEWLINE \n
 
 %%
@@ -40,14 +51,24 @@ NEWLINE \n
 	logout<<"Line# "<<line_count<<": Token <"<<uppercase(yytext)<<"> Lexeme "<<yytext<<" found\n";
 }
 
-{DIGITS} {
+{INT} {
 	tokenout<<"<CONST_INT, "<<yytext<<">\n";
 	logout<<"Line# "<<line_count<<": Token <CONST_INT> Lexeme "<<yytext<<" found\n";
 }
 
-{DIGITS}{EXPONENT}|{DIGITS}?\.{DIGITS}{EXPONENT}? {
+{FLOAT} {
 	tokenout<<"<CONST_FLOAT, "<<yytext<<">\n";
 	logout<<"Line# "<<line_count<<": Token <CONST_FLOAT> Lexeme "<<yytext<<" found\n";
+}
+
+{DIGITS}{EXPONENT}\.[0-9]*|{DIGITS}\.{EXPONENT}? {
+	error_count++;
+	logout<<"Error at line# "<<line_count<<": ILLFORMED_NUMBER "<<yytext<<"\n";
+}
+
+{DIGITS}?\.{DIGITS}{EXPONENT}?(\.{DIGITS}{EXPONENT}?)+ {
+	error_count++;
+	logout<<"Error at line# "<<line_count<<": TOO_MANY_DECIMAL_POINTS "<<yytext<<"\n";
 }
 
 "\'" {
@@ -118,9 +139,9 @@ NEWLINE \n
 }
 
 <CHAR_STATE>[\r]?[\n] {
-	line_count++;
 	error_count++;
 	logout<<"Error at line# "<<line_count<<": UNFINISHED_CONST_CHAR '"<<raw_char_text<<"\n";
+	line_count++;
 	BEGIN INITIAL;
 }
 
@@ -161,6 +182,7 @@ NEWLINE \n
 "\"" {
 	raw_string_text.clear();
 	string_text.clear();
+	string_line_count = 1;
 	BEGIN STRING_STATE;
 }
 
@@ -220,21 +242,21 @@ NEWLINE \n
 }
 
 <STRING_STATE>[\\][\r]?[\n] {
-	string_line_count++;
 	line_count++;
+	string_line_count++;
 	raw_string_text += "\\\n";
 }
 
 <STRING_STATE><<EOF>> {
 	error_count++;
-	logout<<"Error at line# "<<line_count<<": UNFINISHED_STRING \""<<raw_string_text<<"\n";
+	logout<<"Error at line# "<<(line_count-string_line_count+1)<<": UNFINISHED_STRING \""<<raw_string_text<<"\n";
 	BEGIN INITIAL;
 }
 
 <STRING_STATE>[\r]?[\n] {
-	line_count++;
 	error_count++;
 	logout<<"Error at line# "<<line_count<<": UNFINISHED_STRING \""<<raw_string_text<<"\n";
+	line_count++;
 	BEGIN INITIAL;
 }
 
@@ -243,14 +265,13 @@ NEWLINE \n
 	if(string_line_count == 1)
 	{
 		tokenout<<"<SINGLE LINE STRING, "<<string_text<<">\n";
-		logout<<"Line# "<<line_count<<": Token <SINGLE LINE STRING> Lexeme \""<<raw_string_text<<"\" found\n";
+		logout<<"Line# "<<(line_count-string_line_count + 1)<<": Token <SINGLE LINE STRING> Lexeme \""<<raw_string_text<<"\" found\n";
 	}
 	else
 	{
 		tokenout<<"<MULTI LINE STRING, "<<string_text<<">\n";
-		logout<<"Line# "<<line_count<<": Token <MULTI LINE STRING> Lexeme \""<<raw_string_text<<"\" found\n";
+		logout<<"Line# "<<(line_count-string_line_count+1)<<": Token <MULTI LINE STRING> Lexeme \""<<raw_string_text<<"\" found\n";
 	}
-	string_line_count = 1;
 	BEGIN INITIAL;
 }
 
@@ -261,24 +282,25 @@ NEWLINE \n
 
 "\/\/" {
 	single_line_comment_text.clear();
+	comment_line_count = 1;
 	BEGIN SINGLE_LINE_COMMENT_STATE;
 }
 
 <SINGLE_LINE_COMMENT_STATE>[\\][\r]?[\n] {
 	line_count++;
+	comment_line_count++;
 	single_line_comment_text += "\\\n";
 }
 
 <SINGLE_LINE_COMMENT_STATE><<EOF>> {
 	error_count++;
-	logout<<"Line# "<<line_count<<": Token <SINGLE LINE COMMENT> Lexeme //"<<single_line_comment_text<<" found\n";	
+	logout<<"Line# "<<(line_count-comment_line_count+1)<<": Token <SINGLE LINE COMMENT> Lexeme //"<<single_line_comment_text<<" found\n";	
 	BEGIN INITIAL;
 }
 
 <SINGLE_LINE_COMMENT_STATE>[\r]?[\n] {
+	logout<<"Line# "<<(line_count-comment_line_count+1)<<": Token <SINGLE LINE COMMENT> Lexeme //"<<single_line_comment_text<<" found\n";
 	line_count++;
-	error_count++;
-	logout<<"Line# "<<line_count<<": Token <SINGLE LINE COMMENT> Lexeme //"<<single_line_comment_text<<" found\n";	
 	BEGIN INITIAL;
 }
 
@@ -288,23 +310,25 @@ NEWLINE \n
 
 "\/*" {
 	multi_line_comment_text = "/*";
+	comment_line_count = 1;
 	BEGIN MULTI_LINE_COMMENT_STATE;
 }
 
 <MULTI_LINE_COMMENT_STATE>[\r]?[\n] {
 	line_count++;
-	multi_line_comment_text += "\\\n";
+	comment_line_count++;
+	multi_line_comment_text += "\n";
 }
 
 <MULTI_LINE_COMMENT_STATE><<EOF>> {
 	error_count++;
-	logout<<"Error at line# "<<line_count<<": UNFINISHED_COMMENT //"<<multi_line_comment_text<<"\n";
+	logout<<"Error at line# "<<line_count<<": UNFINISHED_COMMENT "<<multi_line_comment_text<<"\n";
 	BEGIN INITIAL;
 }
 
 <MULTI_LINE_COMMENT_STATE>"*\/" {
 	multi_line_comment_text += "*/";
-	logout<<"Line# "<<line_count<<": Token <MULTI LINE COMMENT> Lexeme "<<multi_line_comment_text<<" found\n";	
+	logout<<"Line# "<<(line_count-comment_line_count+1)<<": Token <MULTI LINE COMMENT> Lexeme "<<multi_line_comment_text<<" found\n";	
 	BEGIN INITIAL;
 }
 
@@ -317,7 +341,7 @@ NEWLINE \n
 	logout<<"Line# "<<line_count<<": Token <ADDOP> Lexeme "<<yytext<<" found\n";
 }
 
-"*"|"//"|"%" {
+"*"|"\/"|"%" {
 	tokenout<<"<MULOP, "<<yytext<<">\n";
 	logout<<"Line# "<<line_count<<": Token <MULOP> Lexeme "<<yytext<<" found\n";
 }
@@ -365,11 +389,13 @@ NEWLINE \n
 "{" {
 	tokenout<<"<LCURL, "<<yytext<<">\n";
 	logout<<"Line# "<<line_count<<": Token <LCURL> Lexeme "<<yytext<<" found\n";
+	symbol_table.enter_scope();
 }
 
 "}" {
 	tokenout<<"<RCURL, "<<yytext<<">\n";
 	logout<<"Line# "<<line_count<<": Token <RCURL> Lexeme "<<yytext<<" found\n";
+	symbol_table.exit_scope();
 }
 
 "[" {
@@ -392,10 +418,25 @@ NEWLINE \n
 	logout<<"Line# "<<line_count<<": Token <SEMICOLON> Lexeme "<<yytext<<" found\n";
 }
 
-{ALPHABET}{ALPHANUMERIC}* {
+{ID} {
 	tokenout<<"<ID, "<<yytext<<">\n";
 	logout<<"Line# "<<line_count<<": Token <ID> Lexeme "<<yytext<<" found\n";
+	bool is_inserted = symbol_table.insert(SymbolInfo(yytext, "ID"));
+	if(is_inserted)
+	{
+		logout<<symbol_table;
+	}
+	else 
+	{
+		logout<<"\t"<<yytext<<" already exists in the current ScopeTable\n";
+	}
 }
+
+({FLOAT}|{INT}){ID} {
+	error_count++;
+	logout<<"Error at line# "<<line_count<<": INVALID_ID_SUFFIX_NUM_PREFIX "<<yytext<<"\n";
+}
+
 
 {NEWLINE} {line_count++;}
 
@@ -427,10 +468,11 @@ int main(int argc, char** argv) {
 	yylex();
 	fclose(yyin);
 
-  logout<<"Total lines: "<<line_count<<"\n";
-  logout<<"Total errors: "<<error_count<<"\n";
+	logout<<symbol_table;
+  	logout<<"Total lines: "<<line_count<<"\n";
+  	logout<<"Total errors: "<<error_count<<"\n";
 
-  tokenout.close();
-  logout.close();
+  	tokenout.close();
+  	logout.close();
 	return 0;
 }

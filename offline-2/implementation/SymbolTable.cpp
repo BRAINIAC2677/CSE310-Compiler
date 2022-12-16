@@ -24,7 +24,7 @@ void SymbolTable::enter_scope() noexcept
 
 bool SymbolTable::exit_scope() noexcept
 {
-    if (current_scope != nullptr)
+    if (current_scope->get_parent_scope() != nullptr)
     {
         current_scope = current_scope->get_parent_scope();
         return true;

@@ -135,6 +135,10 @@ ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept
 
     for (auto i = 0; i < scope_table.number_of_buckets; i++)
     {
+        if (scope_table.buckets[i] == nullptr)
+        {
+            continue;
+        }
         out << "\t" << (i + 1) << "--> ";
         auto current_symbol_info = scope_table.buckets[i];
         while (current_symbol_info != nullptr)

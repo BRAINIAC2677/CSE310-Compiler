@@ -1,0 +1,33 @@
+int main(){
+	int c, i=0;
+	int n[c], x[c], y[c];
+	cin>> c;
+	if(c==0){
+		cout<<"OOPS!";
+	}
+	else{
+		while(i<c){
+			cin>> n[i]>> x[i]>> y[i];
+			n[i]--;
+			x[i]--;
+			i++;
+		}
+		i=0;
+		while(i<c){
+			if(n[i]%2==0){
+				n[i]=n[i]/2;
+				if(x[i]>=n[i] && y[i]>=n[i]){
+					cout<< "YES\n";
+				}
+				else{
+					cout<< "NO\n";
+				}
+			}
+			else{
+				cout<< "OOPS!\n";
+			}
+			i++;
+		}
+		
+	}
+}
