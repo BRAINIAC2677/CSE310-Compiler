@@ -1,4 +1,4 @@
-#include "SymbolInfo.hpp"
+#include "1905004_SymbolInfo.hpp"
 
 SymbolInfo *NULL_SYMBOL_INFO = new SymbolInfo("nullptr", "nullptr");
 
