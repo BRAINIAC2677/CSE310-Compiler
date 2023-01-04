@@ -31,6 +31,8 @@
 
 #include <bits/stdc++.h>
 using namespace std;
+
+#include "SymbolInfo.hpp"
 }
 
 
@@ -66,7 +68,23 @@ using namespace std;
 // Scanner and error count are exchanged between main, yyparse and yylex.
 %param {yyscan_t scanner}
 
-%token EOL COMMA SEMICOLON LPAREN RPAREN LCURL RCURL LTHIRD RTHIRD CONST_INT CONST_FLOAT INCOP DECOP NOT ADDOP MULOP LOGICOP RELOP ASSIGNOP RETURN PRINTLN ID WHILE IF ELSE FOR INT FLOAT VOID 
+%token IF WHILE FOR RETURN INT FLOAT VOID LPAREN LCURL RCURL LTHIRD RTHIRD SEMICOLON COMMA PRINTLN
+
+%token ID 
+
+%precedence RPAREN
+%precedence ELSE
+
+%right ASSIGNOP
+%left LOGICOP
+%left RELOP
+%left ADDOP
+%left MULOP
+%right NOT
+%right INCOP DECOP
+
+%token CONST_INT CONST_FLOAT
+
 
 %%
 // Rules.

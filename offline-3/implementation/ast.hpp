@@ -1,5 +1,6 @@
 #pragma once
-#include "SymbolInfo.hpp"
+
+class SymbolInfo;
 
 namespace ast
 {
