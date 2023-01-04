@@ -1,6 +1,6 @@
 #pragma once
 
-#include "1905004_ScopeTable.hpp"
+#include "ScopeTable.hpp"
 
 class SymbolTable
 {

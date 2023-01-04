@@ -1,4 +1,4 @@
-#include "1905004_ScopeTable.hpp"
+#include "ScopeTable.hpp"
 
 #include <iostream>
 using namespace std;
@@ -46,9 +46,7 @@ bool ScopeTable::insert(SymbolInfo symbol_info) noexcept
 {
     if (lookup(symbol_info.get_name()) == NULL_SYMBOL_INFO)
     {
-        SymbolInfo *new_symbol_info = new SymbolInfo(
-            symbol_info.get_name(),
-            symbol_info.get_type());
+        SymbolInfo *new_symbol_info = (new SymbolInfo())->set_name(symbol_info.get_name())->set_type(symbol_info.get_type())->set_array_size(symbol_info.get_array_size())->set_function_info(symbol_info.get_function_info());
 
         auto hashed_index = SDBMHash(new_symbol_info->get_name());
         auto last_symbol_info = get_last_symbol_info(hashed_index);

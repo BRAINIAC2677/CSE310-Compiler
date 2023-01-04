@@ -1,6 +1,6 @@
 #pragma once
 
-#include "1905004_SymbolInfo.hpp"
+#include "SymbolInfo.hpp"
 
 #include <iostream>
 using namespace std;

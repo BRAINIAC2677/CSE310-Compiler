@@ -1,4 +1,4 @@
-#include "1905004_SymbolTable.hpp"
+#include "SymbolTable.hpp"
 
 #include <tuple>
 using namespace std;
