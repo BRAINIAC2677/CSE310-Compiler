@@ -1,19 +1,16 @@
 int x,y,z; float a;
 
-void foo();
-
-int var(int a, int b){
-	return a+b;
+int var(int-){
 }
 
-void foo(){
-	x=2;
-	y=x-5;
-}
 
 int main(){
 	int a[2],c,i,j ; float d;
-	int k;
+	int x-y,z;
+	a = 2 + = 6
+	#
+	x = 2;
+	
 	a[0];
 	a[1]=5;
 	i= a[0]+a[1];
@@ -21,4 +18,3 @@ int main(){
 	d=var(1,2*3)+3.5*2;
 	return 0;
 }
-
