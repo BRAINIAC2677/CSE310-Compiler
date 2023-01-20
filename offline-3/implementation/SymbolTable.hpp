@@ -17,8 +17,8 @@ public:
     void enter_scope() noexcept;
     bool exit_scope() noexcept;
     bool insert(SymbolInfo symbol_info) noexcept;
-    bool remove(string symbol_name) noexcept;
-    SymbolInfo *lookup(string symbol_name) const;
-    tuple<int, int, int> find_position(string symbol_name) const noexcept;
+    bool remove(string symbol_lexeme) noexcept;
+    SymbolInfo *lookup(string symbol_lexeme) const;
+    tuple<int, int, int> find_position(string symbol_lexeme) const noexcept;
     friend ostream &operator<<(ostream &out, SymbolTable &symbol_table) noexcept;
 };

@@ -1,60 +1,108 @@
 #include "SymbolInfo.hpp"
 
-SymbolInfo *NULL_SYMBOL_INFO = (new SymbolInfo())->set_name("nullptr")->set_type("nullptr")->set_array_size(0)->set_function_info(nullptr)->set_next_symbol_info(nullptr);
+SymbolInfo *NULL_SYMBOL_INFO = (new SymbolInfo())->set_lexeme("nullptr")->set_type(SYMBOLTYPE::NULL_SYMBOL)->set_next_symbol_info(nullptr);
 
-SymbolInfo::SymbolInfo() noexcept : name(""), type(""), array_size(0), function_info(nullptr), next_symbol_info(nullptr) {}
+SymbolInfo::SymbolInfo() noexcept : lexeme(""), type(SYMBOLTYPE::NULL_SYMBOL), next_symbol_info(nullptr) {}
 
-string SymbolInfo::get_name() const noexcept
+SymbolInfo::SymbolInfo(SymbolInfo *symbol_info) noexcept : lexeme(symbol_info->get_lexeme()), type(symbol_info->get_type()), next_symbol_info(symbol_info->get_next_symbol_info()) {}
+
+string SymbolInfo::get_lexeme() const noexcept
 {
-    return this->name;
+  return this->lexeme;
 }
 
-string SymbolInfo::get_type() const noexcept
+SYMBOLTYPE SymbolInfo::get_type() const noexcept
 {
-    return this->type;
-}
-
-int SymbolInfo::get_array_size() const noexcept
-{
-    return this->array_size;
-}
-
-FunctionInfo *SymbolInfo::get_function_info() const noexcept
-{
-    return this->function_info;
+  return this->type;
 }
 
 SymbolInfo *SymbolInfo::get_next_symbol_info() const noexcept
 {
-    return this->next_symbol_info;
+  return this->next_symbol_info;
 }
 
-SymbolInfo *SymbolInfo::set_name(string name) noexcept
+SymbolInfo *SymbolInfo::set_lexeme(string lexeme) noexcept
 {
-    this->name = name;
-    return this;
+  this->lexeme = lexeme;
+  return this;
 }
 
-SymbolInfo *SymbolInfo::set_type(string type) noexcept
+SymbolInfo *SymbolInfo::set_type(SYMBOLTYPE type) noexcept
 {
-    this->type = type;
-    return this;
-}
-
-SymbolInfo *SymbolInfo::set_array_size(int array_size) noexcept
-{
-    this->array_size = array_size;
-    return this;
-}
-
-SymbolInfo *SymbolInfo::set_function_info(FunctionInfo *function_info) noexcept
-{
-    this->function_info = function_info;
-    return this;
+  this->type = type;
+  return this;
 }
 
 SymbolInfo *SymbolInfo::set_next_symbol_info(SymbolInfo *next_symbol_info) noexcept
 {
-    this->next_symbol_info = next_symbol_info;
-    return this;
+  this->next_symbol_info = next_symbol_info;
+  return this;
+}
+
+FuncInfo::FuncInfo() noexcept : SymbolInfo(), return_type_specifier(NULL_SYMBOL)
+{
+  this->param_type_specifier = vector<SYMBOLTYPE>();
+}
+
+bool FuncInfo::is_return_type_same(SYMBOLTYPE arg_return_type_specifier)
+{
+  return (this->return_type_specifier == arg_return_type_specifier);
+}
+
+bool FuncInfo::is_param_type_same(vector<SYMBOLTYPE> arg_param_type_specifier)
+{
+  if (arg_param_type_specifier.size() != this->param_type_specifier.size())
+  {
+    return false;
+  }
+  for (int i = 0; i < arg_param_type_specifier.size(); i++)
+  {
+    // todo: handle implicit type-casting
+    if (this->param_type_specifier[i] != arg_param_type_specifier[i])
+    {
+      return true;
+    }
+  }
+  return true;
+}
+
+VarInfo::VarInfo() noexcept : SymbolInfo(), type_specifier(NULL_SYMBOL), array_size(-2) {}
+
+VarInfo::VarInfo(SymbolInfo *symbol_info) noexcept : SymbolInfo(), type_specifier(NULL_SYMBOL), array_size(-2)
+{
+  this->set_lexeme(symbol_info->get_lexeme());
+  this->set_type(SYMBOLTYPE::VAR_ID);
+  this->set_next_symbol_info(symbol_info->get_next_symbol_info());
+}
+
+SYMBOLTYPE VarInfo::get_type_specifier()
+{
+  return this->type_specifier;
+}
+
+int VarInfo::get_array_size()
+{
+  return this->array_size;
+}
+
+VarInfo *VarInfo::set_type_specifier(SYMBOLTYPE type_specifier)
+{
+  this->type_specifier = type_specifier;
+  return this;
+}
+
+VarInfo *VarInfo::set_array_size(int array_size)
+{
+  this->array_size = array_size;
+  return this;
+}
+
+bool VarInfo::is_type_same(SYMBOLTYPE arg_type_specifier)
+{
+  return (this->type_specifier == arg_type_specifier);
+}
+
+bool VarInfo::is_array()
+{
+  return (this->array_size >= 0);
 }

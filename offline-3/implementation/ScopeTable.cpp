@@ -44,11 +44,11 @@ void ScopeTable::set_parent_scope(ScopeTable *parent_scope) noexcept
 
 bool ScopeTable::insert(SymbolInfo symbol_info) noexcept
 {
-    if (lookup(symbol_info.get_name()) == NULL_SYMBOL_INFO)
+    if (lookup(symbol_info.get_lexeme()) == NULL_SYMBOL_INFO)
     {
-        SymbolInfo *new_symbol_info = (new SymbolInfo())->set_name(symbol_info.get_name())->set_type(symbol_info.get_type())->set_array_size(symbol_info.get_array_size())->set_function_info(symbol_info.get_function_info());
+        SymbolInfo *new_symbol_info = (new SymbolInfo())->set_lexeme(symbol_info.get_lexeme())->set_type(symbol_info.get_type());
 
-        auto hashed_index = SDBMHash(new_symbol_info->get_name());
+        auto hashed_index = SDBMHash(new_symbol_info->get_lexeme());
         auto last_symbol_info = get_last_symbol_info(hashed_index);
 
         if (last_symbol_info == nullptr)
@@ -67,14 +67,14 @@ bool ScopeTable::insert(SymbolInfo symbol_info) noexcept
     }
 }
 
-SymbolInfo *ScopeTable::lookup(string symbol_name) const noexcept
+SymbolInfo *ScopeTable::lookup(string symbol_lexeme) const noexcept
 {
-    auto hashed_index = SDBMHash(symbol_name);
+    auto hashed_index = SDBMHash(symbol_lexeme);
     auto current_symbol_info = buckets[hashed_index];
 
     while (current_symbol_info != nullptr)
     {
-        if (current_symbol_info->get_name() == symbol_name)
+        if (current_symbol_info->get_lexeme() == symbol_lexeme)
         {
             return current_symbol_info;
         }
@@ -84,14 +84,14 @@ SymbolInfo *ScopeTable::lookup(string symbol_name) const noexcept
     return NULL_SYMBOL_INFO;
 }
 
-pair<int, int> ScopeTable::find_position(string symbol_name) const noexcept
+pair<int, int> ScopeTable::find_position(string symbol_lexeme) const noexcept
 {
-    auto row_index = static_cast<int>(SDBMHash(symbol_name));
+    auto row_index = static_cast<int>(SDBMHash(symbol_lexeme));
     auto col_index = 0;
 
     for (auto current_symbol_info = buckets[row_index]; current_symbol_info != nullptr; current_symbol_info = current_symbol_info->get_next_symbol_info(), col_index++)
     {
-        if (current_symbol_info->get_name() == symbol_name)
+        if (current_symbol_info->get_lexeme() == symbol_lexeme)
         {
             return make_pair(row_index + 1, col_index + 1);
         }
@@ -99,15 +99,15 @@ pair<int, int> ScopeTable::find_position(string symbol_name) const noexcept
     return make_pair(-1, -1);
 }
 
-bool ScopeTable::remove(string symbol_name) noexcept
+bool ScopeTable::remove(string symbol_lexeme) noexcept
 {
-    auto hashed_index = SDBMHash(symbol_name);
+    auto hashed_index = SDBMHash(symbol_lexeme);
     auto current_symbol_info = buckets[hashed_index];
     SymbolInfo *previous_symbol_info = nullptr;
 
     while (current_symbol_info != nullptr)
     {
-        if (current_symbol_info->get_name() == symbol_name)
+        if (current_symbol_info->get_lexeme() == symbol_lexeme)
         {
             if (previous_symbol_info == nullptr)
             {
@@ -141,7 +141,7 @@ ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept
         auto current_symbol_info = scope_table.buckets[i];
         while (current_symbol_info != nullptr)
         {
-            out << "<" << current_symbol_info->get_name() << "," << current_symbol_info->get_type() << "> ";
+            out << "<" << current_symbol_info->get_lexeme() <<"> ";
             current_symbol_info = current_symbol_info->get_next_symbol_info();
         }
         out << endl;

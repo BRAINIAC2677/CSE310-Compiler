@@ -1,194 +1,268 @@
-#include "ast.hpp"
-using namespace ast;
+#include <bits/stdc++.h>
+using namespace std;
 
-NodeType Node::get_node_type()
+#include "ast.hpp"
+
+map<SYMBOLTYPE, string> aa_nonterminal_symbols = {
+    {START, "START"},
+    {PROGRAM, "PROGRAM"},
+    {UNIT, "UNIT"},
+    {FUNC_DECLARATION, "FUNC_DECLARATION"},
+    {FUNC_DEFINITION, "FUNC_DEFINITION"},
+    {PARAMETER_LIST, "PARAMETER_LIST"},
+    {COMPOUND_STATEMENT, "COMPOUND_STATEMENT"},
+    {VAR_DECLARATION, "VAR_DECLARATION"},
+    {TYPE_SPECIFIER, "TYPE_SPECIFIER"},
+    {DECLARATION_LIST, "DECLARATION_LIST"},
+    {STATEMENTS, "STATEMENTS"},
+    {STATEMENT, "STATEMENT"},
+    {EXPRESSION_STATEMENT, "EXPRESSION_STATEMENT"},
+    {VARIABLE, "VARIABLE"},
+    {EXPRESSION, "EXPRESSION"},
+    {LOGIC_EXPRESSION, "LOGIC_EXPRESSION"},
+    {REL_EXPRESSION, "REL_EXPRESSION"},
+    {SIMPLE_EXPRESSION, "SIMPLE_EXPRESSION"},
+    {TERM, "TERM"},
+    {UNARY_EXPRESSION, "UNARY_EXPRESSION"},
+    {FACTOR, "FACTOR"},
+    {ARGUMENT_LIST, "ARGUMENT_LIST"},
+    {ARGUMENTS, "ARGUMENTS"}};
+map<SYMBOLTYPE, string> aa_terminal_symbols = {
+    {IF, "IF"},
+    {WHILE, "WHILE"},
+    {FOR, "FOR"},
+    {RETURN, "RETURN"},
+    {INT, "INT"},
+    {FLOAT, "FLOAT"},
+    {VOID, "VOID"},
+    {ADDOP, "ADDOP"},
+    {MULOP, "MULOP"},
+    {INCOP, "INCOP"},
+    {DECOP, "DECOP"},
+    {RELOP, "RELOP"},
+    {ASSIGNOP, "ASSIGNOP"},
+    {LOGICOP, "LOGICOP"},
+    {NOT, "NOT"},
+    {LPAREN, "("},
+    {RPAREN, ")"},
+    {LCURL, "{"},
+    {RCURL, "}"},
+    {LTHIRD, "["},
+    {RTHIRD, "]"},
+    {SEMICOLON, "SEMICOLON"},
+    {COMMA, "COMMA"},
+    {PRINTLN, "PRINTLN"},
+    {ID, "ID"},
+    {CONST_INT, "CONST_INT"},
+    {CONST_FLOAT, "CONST_FLOAT"}};
+
+SYMBOLTYPE Node::get_symbol_type()
 {
-    return node_type;
+  return symbol_type;
 }
 
 int Node::get_start_lineno()
 {
-    return start_lineno;
+  return this->start_lineno;
 }
 
 int Node::get_end_lineno()
 {
-    return end_lineno;
+  return this->end_lineno;
 }
 
-void Node::set_node_type(NodeType node_type)
+string Node::get_production_rule()
 {
-    this->node_type = node_type;
+  return production_rule;
 }
 
-void Node::set_start_lineno(int start_lineno)
+Node *Node::set_symbol_type(SYMBOLTYPE symbol_type)
 {
-    this->start_lineno = start_lineno;
+  this->symbol_type = symbol_type;
+  return this;
 }
 
-void Node::set_end_lineno(int end_lineno)
+Node *Node::set_start_lineno(int start_lineno)
 {
-    this->end_lineno = end_lineno;
+  this->start_lineno = start_lineno;
+  return this;
 }
 
-Node::Node(NodeType node_type, int start_lineno, int end_lineno) : node_type(node_type), start_lineno(start_lineno), end_lineno(end_lineno) {}
-
-void Node::print_ast()
+Node *Node::set_end_lineno(int end_lineno)
 {
-    // todo: implement
+  this->end_lineno = end_lineno;
+  return this;
 }
 
-BasicNode::BasicNode(NodeType node_type, int start_lineno, int end_lineno) : Node(node_type, start_lineno, end_lineno), left(nullptr), right(nullptr) {}
-
-Node *BasicNode::get_left()
+Node *Node::set_production_rule(string production_rule)
 {
-    return left;
+  this->production_rule = production_rule;
+  return this;
 }
 
-Node *BasicNode::get_right()
+void Node::print_parsetree(Node *root, ofstream &out, int depth)
 {
-    return right;
+  if (root == nullptr)
+  {
+    return;
+  }
+
+  SYMBOLTYPE symbol_type = root->get_symbol_type();
+
+  for (int i = 0; i < depth; i++)
+  {
+    out << " ";
+  }
+
+  if (aa_nonterminal_symbols.find(symbol_type) != aa_nonterminal_symbols.end())
+  {
+    NonterminalNode *nonterminal_node = (NonterminalNode *)root;
+    out << (nonterminal_node->get_production_rule()) << " <Line: " << nonterminal_node->get_start_lineno() << "-" << nonterminal_node->get_end_lineno() << ">\n";
+    for (Node *child : nonterminal_node->get_children())
+    {
+      print_parsetree(child, out, depth + 1);
+    }
+  }
+
+  else if (aa_terminal_symbols.find(symbol_type) != aa_terminal_symbols.end())
+  {
+    TerminalNode *terminal_node = (TerminalNode *)root;
+    out << aa_terminal_symbols[symbol_type] << " : " << (terminal_node->get_symbol_info()->get_lexeme()) << " <Line: " << terminal_node->get_start_lineno() << ">\n";
+  }
 }
 
-BasicNode *BasicNode::set_left(Node *left)
+Node::Node(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : symbol_type(symbol_type), start_lineno(start_lineno), end_lineno(end_lineno) {}
+
+NonterminalNode::NonterminalNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : Node(symbol_type, start_lineno, end_lineno)
 {
-    this->left = left;
-    return this;
+  this->children = vector<Node *>();
 }
 
-BasicNode *BasicNode::set_right(Node *right)
+vector<Node *> NonterminalNode::get_children()
 {
-    this->right = right;
-    return this;
+  return this->children;
 }
 
-ConstNode::ConstNode(NodeType node_type, int start_lineno, int end_lineno) : Node(node_type, start_lineno, end_lineno), value(0) {}
-
-float ConstNode::get_value()
+NonterminalNode *NonterminalNode::set_children(vector<Node *> children)
 {
-    return value;
+  this->children = children;
+  return this;
 }
 
-ConstNode *ConstNode::set_value(float value)
+NonterminalNode *NonterminalNode::add_child(Node *child)
 {
-    this->value = value;
-    return this;
+  this->children.push_back(child);
+  return this;
 }
 
-IfNode::IfNode(NodeType node_type, int start_lineno, int end_lineno) : Node(node_type, start_lineno, end_lineno), condition(nullptr), if_branch(nullptr), else_branch(nullptr) {}
+TerminalNode::TerminalNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : Node(symbol_type, start_lineno, end_lineno) {}
 
-Node *IfNode::get_condition()
+TerminalNode::TerminalNode(SYMBOLTYPE symbol_type, int start_lineno) : Node(symbol_type, start_lineno, start_lineno) {}
+
+TerminalNode *TerminalNode::set_symbol_info(SymbolInfo *symbol_info)
 {
-    return condition;
+  this->symbol_info = symbol_info;
+  return this;
 }
 
-Node *IfNode::get_if_branch()
+SymbolInfo *TerminalNode::get_symbol_info()
 {
-    return if_branch;
+  return this->symbol_info;
 }
 
-Node *IfNode::get_else_branch()
+ParameterListNode::ParameterListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : NonterminalNode(symbol_type, start_lineno, end_lineno)
 {
-    return else_branch;
+  this->parameters = vector<SYMBOLTYPE>();
 }
 
-IfNode *IfNode::set_condition(Node *condition)
+vector<SYMBOLTYPE> ParameterListNode::get_parameters()
 {
-    this->condition = condition;
-    return this;
+  return this->parameters;
 }
 
-IfNode *IfNode::set_if_branch(Node *if_branch)
+ParameterListNode *ParameterListNode::set_parameters(vector<SYMBOLTYPE> parameters)
 {
-    this->if_branch = if_branch;
-    return this;
+  this->parameters = parameters;
+  return this;
 }
 
-IfNode *IfNode::set_else_branch(Node *else_branch)
+ParameterListNode *ParameterListNode::add_parameter(SYMBOLTYPE parameter)
 {
-    this->else_branch = else_branch;
-    return this;
+  this->parameters.push_back(parameter);
+  return this;
 }
 
-ForNode::ForNode(NodeType node_type, int start_lineno, int end_lineno) : Node(node_type, start_lineno, end_lineno), init(nullptr), condition(nullptr), update(nullptr), body(nullptr) {}
-
-Node *ForNode::get_init()
+bool ParameterListNode::is_parameters_compatible(ParameterListNode *parameter_list_node)
 {
-    return init;
+  if (this->parameters.size() != parameter_list_node->get_parameters().size())
+  {
+    return false;
+  }
+  for (int i = 0; i < this->parameters.size(); i++)
+  {
+    if (this->parameters[i] != parameter_list_node->get_parameters()[i])
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
-Node *ForNode::get_condition()
+DeclarationListNode::DeclarationListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : NonterminalNode(symbol_type, start_lineno, end_lineno)
 {
-    return condition;
+  this->declared_variables = vector<VarInfo *>();
 }
 
-Node *ForNode::get_update()
+vector<VarInfo *> DeclarationListNode::get_declared_variables()
 {
-    return update;
+  return this->declared_variables;
 }
 
-Node *ForNode::get_body()
+DeclarationListNode *DeclarationListNode::set_declared_variables(vector<VarInfo *> declared_variables)
 {
-    return body;
+  for (VarInfo *declared_variable : declared_variables)
+  {
+    this->declared_variables.push_back(declared_variable);
+  }
+  return this;
 }
 
-ForNode *ForNode::set_init(Node *init)
+DeclarationListNode *DeclarationListNode::set_declared_variables(DeclarationListNode *declaration_list_node)
 {
-    this->init = init;
-    return this;
+  for (VarInfo *declared_variable : declaration_list_node->declared_variables)
+  {
+    this->declared_variables.push_back(declared_variable);
+  }
+  return this;
 }
 
-ForNode *ForNode::set_condition(Node *condition)
+DeclarationListNode *DeclarationListNode::add_declared_variable(VarInfo *declared_variable)
 {
-    this->condition = condition;
-    return this;
+  this->declared_variables.push_back(declared_variable);
+  return this;
 }
 
-ForNode *ForNode::set_update(Node *update)
+ExpressionNode::ExpressionNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : NonterminalNode(symbol_type, start_lineno, end_lineno)
 {
-    this->update = update;
-    return this;
+  this->type_specifier = SYMBOLTYPE::NULL_SYMBOL;
 }
 
-ForNode *ForNode::set_body(Node *body)
+SYMBOLTYPE ExpressionNode::get_type_specifier()
 {
-    this->body = body;
-    return this;
+  return this->type_specifier;
 }
 
-WhileNode::WhileNode(NodeType node_type, int start_lineno, int end_lineno) : Node(node_type, start_lineno, end_lineno), condition(nullptr), body(nullptr) {}
-
-Node *WhileNode::get_condition()
+ExpressionNode *ExpressionNode::set_type_specifier(SYMBOLTYPE type_specifier)
 {
-    return condition;
+  this->type_specifier = type_specifier;
+  return this;
 }
 
-Node *WhileNode::get_body()
+bool ExpressionNode::is_type_compatible(ExpressionNode *expression_node)
 {
-    return body;
-}
-
-WhileNode *WhileNode::set_condition(Node *condition)
-{
-    this->condition = condition;
-    return this;
-}
-
-WhileNode *WhileNode::set_body(Node *body)
-{
-    this->body = body;
-    return this;
-}
-
-TerminalTokenNode::TerminalTokenNode(NodeType node_type, int start_lineno, int end_lineno) : Node(node_type, start_lineno, end_lineno), symbol_info(nullptr) {}
-
-SymbolInfo *TerminalTokenNode::get_symbol_info()
-{
-    return symbol_info;
-}
-
-TerminalTokenNode *TerminalTokenNode::set_symbol_info(SymbolInfo *symbol_info)
-{
-    this->symbol_info = symbol_info;
-    return this;
+  if (this->type_specifier == expression_node->get_type_specifier())
+  {
+    return true;
+  }
+  return false;
 }

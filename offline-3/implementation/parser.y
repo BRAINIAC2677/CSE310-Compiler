@@ -8,7 +8,6 @@
 
   #include "SymbolInfo.hpp"
   #include "ast.hpp"
-  using namespace ast;
 
   typedef struct CustomScannerData{
     ofstream* log_file_p;
@@ -82,35 +81,29 @@ using namespace std;
 // Scanner and error count are exchanged between main, yyparse and yylex.
 %param {yyscan_t scanner}
 
-%type <Node*> statement
-%type <BasicNode*> start program unit parameter_list compound_statement var_declaration type_specifier declaration_list statements expression_statement variable expression logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
-%type <TerminalTokenNode*> func_declaration func_definition
-
-%token IF WHILE FOR RETURN INT FLOAT VOID LPAREN LCURL RCURL LTHIRD RTHIRD SEMICOLON COMMA PRINTLN
+%type <Node*> start program unit func_declaration func_definition parameter_list compound_statement var_declaration type_specifier declaration_list statements statement expression_statement variable expression logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
+%token <SymbolInfo*> IF WHILE FOR RETURN INT FLOAT VOID LPAREN LCURL RCURL LTHIRD RTHIRD SEMICOLON COMMA PRINTLN
 
 %token <SymbolInfo*> ID 
 
-%precedence RPAREN
-%precedence ELSE
+%precedence<SymbolInfo*> RPAREN
+%precedence<SymbolInfo*> ELSE
 
-%right ASSIGNOP
+%right <SymbolInfo*> ASSIGNOP
 %left <SymbolInfo*> LOGICOP
 %left <SymbolInfo*> RELOP
 %left <SymbolInfo*> ADDOP
 %left <SymbolInfo*> MULOP
-%right NOT
-%right INCOP DECOP
+%right <SymbolInfo*> NOT
+%right <SymbolInfo*> INCOP DECOP
 
-%token <int> CONST_INT
-%token <float> CONST_FLOAT
+%token <SymbolInfo*> CONST_INT CONST_FLOAT
 
 
 %%
 // Rules.
 start : program
 	{
-		//write your code in this block in all the similar blocks below
-		log_file << "start : program\n";
 	}
 	;
 
@@ -127,6 +120,8 @@ program : program unit
 unit : var_declaration
 	{
 		log_file << "unit : var_declaration\n";
+
+		Node::print_parsetree($1, parsetree_file, 0);
 	}
     | func_declaration
 	{
@@ -191,38 +186,186 @@ compound_statement : LCURL statements RCURL
 var_declaration : type_specifier declaration_list SEMICOLON
 	{
 		log_file << "var_declaration : type_specifier declaration_list SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @3.first_line);
+		semicolon_node->set_symbol_info($3);
+
+		DeclarationListNode* declaration_list_node = (DeclarationListNode*)$2;
+
+		NonterminalNode* type_specifier_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::VAR_DECLARATION, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("var_declaration : type_specifier declaration_list SEMICOLON");
+
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(declaration_list_node);
+		non_terminal_node->add_child(semicolon_node);
+
+		$$ = (Node*)non_terminal_node;
+
+		// setting type_specifier of all the variables in the declaration_list
+		for(auto var: declaration_list_node->get_declared_variables())
+		{
+			var->set_type_specifier(type_specifier_node->get_children()[0]->get_symbol_type());
+		}
+
 	}
  	;
  		 
 type_specifier	: INT
 	{
 		log_file << "type_specifier	: INT\n";
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("type_specifier : INT");
+
+		TerminalNode* terminal_node = new TerminalNode(SYMBOLTYPE::INT, @1.first_line);
+		terminal_node->set_symbol_info($1);
+
+		non_terminal_node->add_child(terminal_node);
+		$$ = (Node*)non_terminal_node;
+
 	}
  	| FLOAT
 	{
 		log_file << "type_specifier	: FLOAT\n";
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("type_specifier : FLOAT");
+
+		TerminalNode* terminal_node = new TerminalNode(SYMBOLTYPE::FLOAT, @1.first_line);
+		terminal_node->set_symbol_info($1);
+
+		non_terminal_node->add_child(terminal_node);
+		$$ = (Node*)non_terminal_node;
 	}
  	| VOID
 	{
 		log_file << "type_specifier	: VOID\n";
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("type_specifier : VOID");
+
+		TerminalNode* terminal_node = new TerminalNode(SYMBOLTYPE::VOID, @1.first_line);
+		terminal_node->set_symbol_info($1);
+
+		non_terminal_node->add_child(terminal_node);
+		$$ = (Node*)non_terminal_node;
 	}
 	;
  	
 declaration_list : declaration_list COMMA ID
 	{
 		log_file << "declaration_list : declaration_list COMMA ID\n";
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @3.first_line);
+		id_node->set_symbol_info($3);
+
+		TerminalNode* comma_node = new TerminalNode(SYMBOLTYPE::COMMA, @2.first_line);
+		comma_node->set_symbol_info($2);
+
+		DeclarationListNode* declaration_list_node = (DeclarationListNode*)$1;
+
+		DeclarationListNode* non_terminal_node = new DeclarationListNode(SYMBOLTYPE::DECLARATION_LIST, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("declaration_list : declaration_list COMMA ID");
+		non_terminal_node->add_child(declaration_list_node);
+		non_terminal_node->add_child(comma_node);
+		non_terminal_node->add_child(id_node);
+
+		VarInfo* var_info = new VarInfo($3); //type_specifier will be set in var_declaration rule
+
+		non_terminal_node->set_declared_variables(declaration_list_node->get_declared_variables());
+		non_terminal_node->add_declared_variable(var_info);
+
+		$$ = (Node*)non_terminal_node;
+
 	}
  	| declaration_list COMMA ID LTHIRD CONST_INT RTHIRD
 	{
 		log_file << "declaration_list : declaration_list COMMA ID LTHIRD CONST_INT RTHIRD\n";
+
+		TerminalNode* rthird_node = new TerminalNode(SYMBOLTYPE::RTHIRD, @6.first_line);
+		rthird_node->set_symbol_info($6);
+
+		TerminalNode* const_int_node = new TerminalNode(SYMBOLTYPE::CONST_INT, @5.first_line);
+		const_int_node->set_symbol_info($5);
+
+		TerminalNode* lthird_node = new TerminalNode(SYMBOLTYPE::LTHIRD, @4.first_line);
+		lthird_node->set_symbol_info($4);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @3.first_line);
+		id_node->set_symbol_info($3);
+
+		TerminalNode* comma_node = new TerminalNode(SYMBOLTYPE::COMMA, @2.first_line);
+		comma_node->set_symbol_info($2);
+
+		DeclarationListNode* declaration_list_node = (DeclarationListNode*)$1;
+
+		DeclarationListNode* non_terminal_node = new DeclarationListNode(SYMBOLTYPE::DECLARATION_LIST, @1.first_line, @6.last_line);
+		non_terminal_node->set_production_rule("declaration_list : declaration_list COMMA ID LTHIRD CONST_INT RTHIRD");
+
+		non_terminal_node->add_child(declaration_list_node);
+		non_terminal_node->add_child(comma_node);
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lthird_node);
+		non_terminal_node->add_child(const_int_node);
+		non_terminal_node->add_child(rthird_node);
+
+		VarInfo* var_info = new VarInfo($3); //type_specifier will be set in var_declaration rule
+		var_info->set_array_size(stoi($5->get_lexeme()));
+
+		non_terminal_node->set_declared_variables(declaration_list_node->get_declared_variables());
+		non_terminal_node->add_declared_variable(var_info);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	| ID
 	{
 		log_file << "declaration_list : ID\n";
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @1.first_line);
+		id_node->set_symbol_info($1);
+
+		DeclarationListNode* non_terminal_node = new DeclarationListNode(SYMBOLTYPE::DECLARATION_LIST, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("declaration_list : ID");
+
+		non_terminal_node->add_child(id_node);
+
+		VarInfo* var_info = new VarInfo($1); //type_specifier will be set in var_declaration rule
+		non_terminal_node->add_declared_variable(var_info);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	| ID LTHIRD CONST_INT RTHIRD
 	{
 		log_file << "declaration_list : ID LTHIRD CONST_INT RTHIRD\n";
+
+		TerminalNode* rthird_node = new TerminalNode(SYMBOLTYPE::RTHIRD, @4.first_line);
+		rthird_node->set_symbol_info($4);
+
+		TerminalNode* const_int_node = new TerminalNode(SYMBOLTYPE::CONST_INT, @3.first_line);
+		const_int_node->set_symbol_info($3);
+
+		TerminalNode* lthird_node = new TerminalNode(SYMBOLTYPE::LTHIRD, @2.first_line);
+		lthird_node->set_symbol_info($2);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @1.first_line);
+		id_node->set_symbol_info($1);		
+
+		DeclarationListNode* non_terminal_node = new DeclarationListNode(SYMBOLTYPE::DECLARATION_LIST, @1.first_line, @4.last_line);
+		non_terminal_node->set_production_rule("declaration_list : ID LTHIRD CONST_INT RTHIRD");
+
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lthird_node);
+		non_terminal_node->add_child(const_int_node);
+		non_terminal_node->add_child(rthird_node);
+
+		VarInfo* var_info = new VarInfo($1); //type_specifier will be set in var_declaration rule
+		var_info->set_array_size(stoi($3->get_lexeme()));
+
+		non_terminal_node->add_declared_variable(var_info);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	;
  		  

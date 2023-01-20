@@ -22,9 +22,9 @@ public:
     void set_parent_scope(ScopeTable *parent_scope) noexcept;
 
     bool insert(SymbolInfo symbol_info) noexcept;
-    SymbolInfo *lookup(string symbol_name) const noexcept;
-    pair<int, int> find_position(string symbol_name) const noexcept;
-    bool remove(string symbol_name) noexcept;
+    SymbolInfo *lookup(string symbol_lexeme) const noexcept;
+    pair<int, int> find_position(string symbol_lexeme) const noexcept;
+    bool remove(string symbol_lexeme) noexcept;
     friend ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept;
 
 private:

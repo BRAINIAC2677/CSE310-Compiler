@@ -1,113 +1,95 @@
 #pragma once
 
-class SymbolInfo;
+#include <vector>
+using namespace std;
 
-namespace ast
+#include "SymbolInfo.hpp"
+
+class Node
 {
+  SYMBOLTYPE symbol_type;
+  int start_lineno, end_lineno;
+  string production_rule;
 
-  typedef enum
-  {
-    BASIC_NODE,
-  } NodeType;
+public:
+  SYMBOLTYPE get_symbol_type();
+  int get_start_lineno();
+  int get_end_lineno();
+  string get_production_rule();
 
-  class Node
-  {
-    NodeType node_type;
-    int start_lineno, end_lineno;
+  Node *set_symbol_type(SYMBOLTYPE);
+  Node *set_start_lineno(int);
+  Node *set_end_lineno(int);
+  Node *set_production_rule(string);
 
-  public:
-    NodeType get_node_type();
-    int get_start_lineno();
-    int get_end_lineno();
-    void set_node_type(NodeType);
-    void set_start_lineno(int);
-    void set_end_lineno(int);
+  static void print_parsetree(Node *root, ofstream &out, int depth = 0);
 
-    void print_ast();
-    // TokenType get_type_specifiers();
+protected:
+  Node(SYMBOLTYPE, int, int);
+};
 
-  protected:
-    Node(NodeType, int, int);
-  };
+class NonterminalNode : public Node
+{
+  vector<Node *> children;
 
-  class BasicNode : public Node
-  {
-    Node *left, *right;
+public:
+  NonterminalNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
-  public:
-    BasicNode(NodeType, int, int);
+  vector<Node *> get_children();
+  NonterminalNode *set_children(vector<Node *> children);
+  NonterminalNode *add_child(Node *child);
+};
 
-    Node *get_left();
-    Node *get_right();
-    BasicNode *set_left(Node *);
-    BasicNode *set_right(Node *);
-  };
+class TerminalNode : public Node
+{
+  SymbolInfo *symbol_info;
 
-  class ConstNode : public Node
-  {
-    float value;
+public:
+  TerminalNode(SYMBOLTYPE symbol_type, int start_lineno);
+  TerminalNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
-  public:
-    ConstNode(NodeType, int, int);
+  TerminalNode *set_symbol_info(SymbolInfo *symbol_info);
+  SymbolInfo *get_symbol_info();
+};
 
-    float get_value();
-    ConstNode *set_value(float);
-  };
+class ParameterListNode : public NonterminalNode
+{
+  vector<SYMBOLTYPE> parameters;
 
-  class IfNode : public Node
-  {
-    Node *condition, *if_branch, *else_branch;
+public:
+  ParameterListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
-  public:
-    IfNode(NodeType, int, int);
+  vector<SYMBOLTYPE> get_parameters();
+  ParameterListNode *set_parameters(vector<SYMBOLTYPE> parameters);
 
-    Node *get_condition();
-    Node *get_if_branch();
-    Node *get_else_branch();
-    IfNode *set_condition(Node *);
-    IfNode *set_if_branch(Node *);
-    IfNode *set_else_branch(Node *);
-  };
+  ParameterListNode *add_parameter(SYMBOLTYPE parameter);
 
-  class ForNode : public Node
-  {
-    Node *init, *condition, *update, *body;
+  bool is_parameters_compatible(ParameterListNode *parameter_list_node);
+};
 
-  public:
-    ForNode(NodeType, int, int);
+class DeclarationListNode : public NonterminalNode
+{
+  vector<VarInfo *> declared_variables;
 
-    Node *get_init();
-    Node *get_condition();
-    Node *get_update();
-    Node *get_body();
-    ForNode *set_init(Node *);
-    ForNode *set_condition(Node *);
-    ForNode *set_update(Node *);
-    ForNode *set_body(Node *);
-  };
+public:
+  DeclarationListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
-  class WhileNode : public Node
-  {
-    Node *condition, *body;
+  vector<VarInfo *> get_declared_variables();
+  DeclarationListNode *set_declared_variables(vector<VarInfo *> declared_variables);
+  DeclarationListNode *set_declared_variables(DeclarationListNode *declaration_list_node);
 
-  public:
-    WhileNode(NodeType, int, int);
+  DeclarationListNode *add_declared_variable(VarInfo *declared_variable);
+};
 
-    Node *get_condition();
-    Node *get_body();
-    WhileNode *set_condition(Node *);
-    WhileNode *set_body(Node *);
-  };
+class ExpressionNode : public NonterminalNode
+{
+  SYMBOLTYPE type_specifier;
 
-  class TerminalTokenNode : public Node
-  {
-    SymbolInfo *symbol_info;
+public:
+  ExpressionNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
-  public:
-    TerminalTokenNode(NodeType, int, int);
+  SYMBOLTYPE get_type_specifier();
+  ExpressionNode *set_type_specifier(SYMBOLTYPE type_specifier);
 
-    SymbolInfo *get_symbol_info();
-    TerminalTokenNode *set_symbol_info(SymbolInfo *);
-  };
-
-}
+  bool is_type_compatible(ExpressionNode *expression_node);
+};

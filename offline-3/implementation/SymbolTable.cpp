@@ -37,16 +37,16 @@ bool SymbolTable::insert(SymbolInfo symbol_info) noexcept
     return current_scope->insert(symbol_info);
 }
 
-bool SymbolTable::remove(string symbol_name) noexcept
+bool SymbolTable::remove(string symbol_lexeme) noexcept
 {
-    return current_scope->remove(symbol_name);
+    return current_scope->remove(symbol_lexeme);
 }
 
-SymbolInfo *SymbolTable::lookup(string symbol_name) const
+SymbolInfo *SymbolTable::lookup(string symbol_lexeme) const
 {
     for (auto scope = current_scope; scope != nullptr; scope = scope->get_parent_scope())
     {
-        auto symbol_info_from_scope = scope->lookup(symbol_name);
+        auto symbol_info_from_scope = scope->lookup(symbol_lexeme);
         if (symbol_info_from_scope != NULL_SYMBOL_INFO)
         {
             return symbol_info_from_scope;
@@ -55,11 +55,11 @@ SymbolInfo *SymbolTable::lookup(string symbol_name) const
     return NULL_SYMBOL_INFO;
 }
 
-tuple<int, int, int> SymbolTable::find_position(string symbol_name) const noexcept
+tuple<int, int, int> SymbolTable::find_position(string symbol_lexeme) const noexcept
 {
     for (auto scope = current_scope; scope != nullptr; scope = scope->get_parent_scope())
     {
-        auto position_in_scope_table = scope->find_position(symbol_name);
+        auto position_in_scope_table = scope->find_position(symbol_lexeme);
         if (position_in_scope_table.first != -1)
         {
             return make_tuple(scope->get_scope_id(), position_in_scope_table.first, position_in_scope_table.second);

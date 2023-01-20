@@ -12,6 +12,7 @@
 #include <stdlib.h> /* strtol */
 
 #include "parser.h"
+#include "SymbolInfo.hpp"
 
 #include "bits/stdc++.h"
 using namespace std;
@@ -51,10 +52,10 @@ ALPHANUMERIC [a-zA-Z0-9_]
 ID {ALPHABET}{ALPHANUMERIC}*
 
 DIGITS ([0-9]+)
-INT {DIGITS}
+CONST_INT {DIGITS}
 EXPONENT ([Ee][+-]?{DIGITS})
 
-FLOAT {DIGITS}{EXPONENT}|{DIGITS}\.{DIGITS}?{EXPONENT}?|\.{DIGITS}{EXPONENT}?
+CONST_FLOAT {DIGITS}{EXPONENT}|{DIGITS}\.{DIGITS}?{EXPONENT}?|\.{DIGITS}{EXPONENT}?
 
 ILLFORMED_EXPONENT [Ee][-+\.0-9]+[-+Ee\.0-9]*
 ILLFORMED_NUMBER {DIGITS}(\.[0-9]*)?{ILLFORMED_EXPONENT}
@@ -75,115 +76,143 @@ NEWLINE \n
 
 "if" {
 	log_out(yylloc->first_line, "IF", yytext);
+	yylval->TOK_IF = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::IF);
 	return TOK_IF;
 }
 "else" {
 	log_out(yylloc->first_line, "ELSE", yytext);
+	yylval->TOK_ELSE = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::ELSE);
 	return TOK_ELSE;
 }
 "while" {
 	log_out(yylloc->first_line, "WHILE", yytext);
+	yylval->TOK_WHILE = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::WHILE);
 	return TOK_WHILE;
 }
 "for" {
 	log_out(yylloc->first_line, "FOR", yytext);
+	yylval->TOK_FOR = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::FOR);
 	return TOK_FOR;
 }
 "return" {
-  log_out(yylloc->first_line, "RETURN", yytext);
+  	log_out(yylloc->first_line, "RETURN", yytext);
+	yylval->TOK_RETURN = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::RETURN);
 	return TOK_RETURN;
 }
 "int" {
 	log_out(yylloc->first_line, "INT", yytext);
+	yylval->TOK_INT = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::INT);
 	return TOK_INT;
 }
 "float" {
 	log_out(yylloc->first_line, "FLOAT", yytext);
+	yylval->TOK_FLOAT = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::FLOAT);
 	return TOK_FLOAT;
 }
 "void" {
 	log_out(yylloc->first_line, "VOID", yytext);
+	yylval->TOK_VOID = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::VOID);
 	return TOK_VOID;
 }
 "printf" {
 	log_out(yylloc->first_line, "PRINTF", yytext);
+	yylval->TOK_PRINTLN = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::PRINTLN);
 	return TOK_PRINTLN;
 }
 "+"|"-" {
 	log_out(yylloc->first_line, "ADDOP", yytext);
+	yylval->TOK_ADDOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::ADDOP);
 	return TOK_ADDOP;
 }
 "*"|"\/"|"%" {
 	log_out(yylloc->first_line, "MULOP", yytext);
+	yylval->TOK_MULOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::MULOP);
 	return TOK_MULOP;
 }
 "++" {
 	log_out(yylloc->first_line, "INCOP", yytext);
+	yylval->TOK_INCOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::INCOP);
 	return TOK_INCOP;
 }
 "--" {
 	log_out(yylloc->first_line, "DECOP", yytext); 
+	yylval->TOK_DECOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::DECOP);
 	return TOK_DECOP;
 }
 "<"|"<="|">"|">="|"=="|"!=" {
 	log_out(yylloc->first_line, "RELOP", yytext); 
+	yylval->TOK_RELOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::RELOP);
 	return TOK_RELOP;
 }
 "=" {
 	log_out(yylloc->first_line, "ASSIGNOP", yytext);
+	yylval->TOK_ASSIGNOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::ASSIGNOP);
 	return TOK_ASSIGNOP;
 }
 "&&"|"||" {
 	log_out(yylloc->first_line, "LOGICOP", yytext); 
+	yylval->TOK_LOGICOP = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::LOGICOP);
 	return TOK_LOGICOP;
 }
 "!" {
 	log_out(yylloc->first_line, "NOT", yytext); 
+	yylval->TOK_NOT = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::NOT);
 	return TOK_NOT;
 }
 "(" {
 	log_out(yylloc->first_line, "LPAREN", yytext); 
+	yylval->TOK_LPAREN = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::LPAREN);
 	return TOK_LPAREN;
 }
 ")" {
 	log_out(yylloc->first_line, "RPAREN", yytext); 
+	yylval->TOK_RPAREN = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::RPAREN);
 	return TOK_RPAREN;
 }
 "{" {
 	log_out(yylloc->first_line, "LCURL", yytext); 
+	yylval->TOK_LCURL = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::LCURL);
 	return TOK_LCURL;
 }
 "}" {
 	log_out(yylloc->first_line, "RCURL", yytext); 
+	yylval->TOK_RCURL = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::RCURL);
 	return TOK_RCURL;
 }
 "[" {
 	log_out(yylloc->first_line, "LTHIRD", yytext);
+	yylval->TOK_LTHIRD = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::LTHIRD);
 	return TOK_LTHIRD;
 }
 "]" {
 	log_out(yylloc->first_line, "RTHIRD", yytext);
+	yylval->TOK_RTHIRD = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::RTHIRD);
 	return TOK_RTHIRD;
 }
 ";" {
 	log_out(yylloc->first_line, "SEMICOLON", yytext);
+	yylval->TOK_SEMICOLON = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::SEMICOLON);
 	return TOK_SEMICOLON;
 }
 "," {
 	log_out(yylloc->first_line, "COMMA", yytext);
+	yylval->TOK_COMMA = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::COMMA);
 	return TOK_COMMA;
 }
 
 {ID} {
 	log_out(yylloc->first_line, "ID", yytext);
+	yylval->TOK_ID = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::ID);
 	return TOK_ID;
 }
-{INT} {
+{CONST_INT} {
 	log_out(yylloc->first_line, "CONST_INT", yytext);
+	yylval->TOK_CONST_INT = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::CONST_INT);
 	return TOK_CONST_INT;
 }
-{FLOAT} {
+{CONST_FLOAT} {
 	log_out(yylloc->first_line, "CONST_FLOAT", yytext);
+	yylval->TOK_CONST_FLOAT = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::CONST_FLOAT);
 	return TOK_CONST_FLOAT;
 }
 

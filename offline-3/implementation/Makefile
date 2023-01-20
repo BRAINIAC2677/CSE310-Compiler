@@ -12,23 +12,32 @@ CXX = g++
 
 all: $(BASE)
 
-$(PARSER).c $(PARSER).h: $(PARSER).y
+$(PARSER).c $(PARSER).h: $(PARSER).y 
 	$(BISON) --header -o $(PARSER).c $<
 
 $(SCANNER).c $(SCANNER).h: $(SCANNER).l
 	$(FLEX) -o $(SCANNER).c --header=$(SCANNER).h $<
 
-$(PARSER).o: $(PARSER).c $(SCANNER).h
+$(PARSER).o: $(PARSER).c $(SCANNER).h 
+	echo "Compiling $(PARSER).c"
 	$(CXX) -w -c -o $@ $<
 
 $(SCANNER).o: $(SCANNER).c $(PARSER).h
 	$(CXX) -w -c -o $@ $<
 
-$(BASE): $(PARSER).o $(SCANNER).o
-	$(CXX) -o $@ $^
+ast.o: ast.cpp 
+	echo "Compiling $(AST).cpp"
+	$(CXX) -w -c -o $@ $<
 
+SymbolInfo.o: SymbolInfo.cpp
+	echo "Compiling $(SymbolInfo).cpp"
+	$(CXX) -w -c -o $@ $<
+
+$(BASE): $(PARSER).o $(SCANNER).o ast.o SymbolInfo.o
+	echo "Compiling $(BASE)"
+	$(CXX) -o $@ $^ 
 run: $(BASE)
-	@echo "Running $(BASE) on $(INPUT)"
+	echo "Running $(BASE) on $(INPUT)"
 	./$< $(INPUT)
 
 clean:
