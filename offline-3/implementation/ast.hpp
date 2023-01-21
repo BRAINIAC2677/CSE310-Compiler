@@ -55,12 +55,16 @@ public:
 class ParameterListNode : public NonterminalNode
 {
   vector<SYMBOLTYPE> parameters;
+  vector<string> parameter_names;
 
 public:
   ParameterListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
   vector<SYMBOLTYPE> get_parameters();
+  vector<string> get_parameter_names();
+
   ParameterListNode *set_parameters(vector<SYMBOLTYPE> parameters);
+  ParameterListNode *set_parameter_names(vector<string> parameter_names);
 
   ParameterListNode *add_parameter(SYMBOLTYPE parameter);
 

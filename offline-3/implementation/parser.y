@@ -68,6 +68,21 @@ using namespace std;
 		error_file << "Line# " << lineno << ": " << "Undeclared variable '" << variable_name << "'\n";
 	}
 
+	void error_redeclared_function(int lineno, string function_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Redeclared function '" << function_name << "'\n";
+	}
+
+	void error_conflicting_type(int lineno, string id_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Conflicting type for '" << id_name << "'\n";
+	}
+
+	void error_parameter_redifinition(int lineno, string parameter_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Redefinition of parameter '" << parameter_name << "'\n";
+	}
+
 }
 
 // Include the header in the implementation rather than duplicating it.
@@ -121,16 +136,49 @@ using namespace std;
 // Rules.
 start : program
 	{
+		log_file << "start : program\n";
+
+		NonterminalNode* program_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::START, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("start : program");
+
+		non_terminal_node->add_child(program_node);
+
+		$$ = (Node*)non_terminal_node;
+		Node::print_parsetree($$, parsetree_file, 0);
 	}
 	;
 
 program : program unit
 	{
 		log_file << "program : program unit\n";
+
+		NonterminalNode* unit_node = (NonterminalNode*)$2;
+
+		NonterminalNode* program_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::PROGRAM, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("program : program unit");
+
+		non_terminal_node->add_child(program_node);
+		non_terminal_node->add_child(unit_node);
+
+		$$ = (Node*)non_terminal_node;
+
 	}
 	| unit
 	{
 		log_file << "program : unit\n";
+
+		NonterminalNode* unit_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::PROGRAM, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("program : unit");
+
+		non_terminal_node->add_child(unit_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	
@@ -138,35 +186,214 @@ unit : var_declaration
 	{
 		log_file << "unit : var_declaration\n";
 
-		Node::print_parsetree($1, parsetree_file, 0);
+		NonterminalNode* var_declaration_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::UNIT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("unit : var_declaration");
+
+		non_terminal_node->add_child(var_declaration_node);
+
+		$$ = (Node*)non_terminal_node;
+
 	}
     | func_declaration
 	{
 		log_file << "unit : func_declaration\n";
+
+		NonterminalNode* func_declaration_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::UNIT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("unit : func_declaration");
+
+		non_terminal_node->add_child(func_declaration_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
     | func_definition
 	{
 		log_file << "unit : func_definition\n";
+
+		NonterminalNode* func_definition_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::UNIT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("unit : func_definition");
+
+		non_terminal_node->add_child(func_definition_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
     ;
      
 func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON
 	{
 		log_file << "func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @6.first_line);
+		semicolon_node->set_symbol_info($6);
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @5.first_line);
+		rparen_node->set_symbol_info($5);
+
+		ParameterListNode* parameter_list_node = (ParameterListNode*)$4;
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @3.first_line);
+		lparen_node->set_symbol_info($3);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @2.first_line);
+		id_node->set_symbol_info($2);
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::FUNC_DECLARATION, @1.first_line, @6.last_line);
+		non_terminal_node->set_production_rule("func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON");
+
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(parameter_list_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(semicolon_node);
+
+
+
+		$$ = (Node*)non_terminal_node;
+
+		SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
+
+		if(symbol_info != NULL_SYMBOL_INFO)
+		{
+			if(symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+			{
+				error_redeclared_function(@2.first_line, $2->get_lexeme());
+			}
+			else if(symbol_info->get_type() == SYMBOLTYPE::VAR_ID)
+			{
+				error_conflicting_type(@2.first_line, $2->get_lexeme());
+			}
+		}
+		else 
+		{
+
+			FuncInfo* func_info = new FuncInfo($2);
+			func_info->set_return_type_specifier(type_specifier_node->get_type_specifier());
+			func_info->set_param_type_specifiers(parameter_list_node->get_parameters());
+
+			symbol_table.insert((SymbolInfo*)func_info);
+
+		}
+		
 	}
 	| type_specifier ID LPAREN RPAREN SEMICOLON
 	{
 		log_file << "func_declaration : type_specifier ID LPAREN RPAREN SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @5.first_line);
+		semicolon_node->set_symbol_info($5);
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @3.first_line);
+		lparen_node->set_symbol_info($3);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @2.first_line);
+		id_node->set_symbol_info($2);
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::FUNC_DECLARATION, @1.first_line, @5.last_line);
+		non_terminal_node->set_production_rule("func_declaration : type_specifier ID LPAREN RPAREN SEMICOLON");
+
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(semicolon_node);
+
+		$$ = (Node*)non_terminal_node;
+		SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
+
+		if(symbol_info != NULL_SYMBOL_INFO)
+		{
+			if(symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+			{
+				error_redeclared_function(@2.first_line, $2->get_lexeme());
+			}
+			else if(symbol_info->get_type() == SYMBOLTYPE::VAR_ID)
+			{
+				error_conflicting_type(@2.first_line, $2->get_lexeme());
+			}
+		}
+		else 
+		{
+			
+			FuncInfo* func_info = new FuncInfo($2);
+			func_info->set_return_type_specifier(type_specifier_node->get_type_specifier());
+			symbol_table.insert((SymbolInfo*)func_info);
+
+		}
 	}
 	;
 		 
 func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement
 	{
 		log_file << "func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement\n";
+
+		NonterminalNode* compound_statement_node = (NonterminalNode*)$6;
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @5.first_line);
+		rparen_node->set_symbol_info($5);
+
+		ParameterListNode* parameter_list_node = (ParameterListNode*)$4;
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @3.first_line);
+		lparen_node->set_symbol_info($3);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @2.first_line);
+		id_node->set_symbol_info($2);
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::FUNC_DEFINITION, @1.first_line, @6.last_line);
+		non_terminal_node->set_production_rule("func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement");
+
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(parameter_list_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(compound_statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| type_specifier ID LPAREN RPAREN compound_statement
 	{
 		log_file << "func_definition : type_specifier ID LPAREN RPAREN compound_statement\n";
+
+		NonterminalNode* compound_statement_node = (NonterminalNode*)$5;
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @3.first_line);
+		lparen_node->set_symbol_info($3);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @2.first_line);
+		id_node->set_symbol_info($2);
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::FUNC_DEFINITION, @1.first_line, @5.last_line);
+		non_terminal_node->set_production_rule("func_definition : type_specifier ID LPAREN RPAREN compound_statement");
+
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(compound_statement_node);
+
+		$$ = (Node*)non_terminal_node;
+
 	}
  	;				
 
@@ -174,18 +401,80 @@ func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statem
 parameter_list  : parameter_list COMMA type_specifier ID
 	{
 		log_file << "parameter_list  : parameter_list COMMA type_specifier ID\n";
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @4.first_line);
+		id_node->set_symbol_info($4);
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* comma_node = new TerminalNode(SYMBOLTYPE::COMMA, @2.first_line);
+		comma_node->set_symbol_info($2);
+
+		ParameterListNode* parameter_list_node = (ParameterListNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @4.last_line);
+		non_terminal_node->set_production_rule("parameter_list  : parameter_list COMMA type_specifier ID");
+		non_terminal_node->add_parameter(type_specifier_node->get_type_specifier());
+
+		non_terminal_node->add_child(parameter_list_node);
+		non_terminal_node->add_child(comma_node);
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(id_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| parameter_list COMMA type_specifier
 	{
 		log_file << "parameter_list  : parameter_list COMMA type_specifier\n";
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* comma_node = new TerminalNode(SYMBOLTYPE::COMMA, @2.first_line);
+		comma_node->set_symbol_info($2);
+
+		ParameterListNode* parameter_list_node = (ParameterListNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("parameter_list  : parameter_list COMMA type_specifier");
+		non_terminal_node->set_parameters(parameter_list_node->get_parameters());
+
+		non_terminal_node->add_child(parameter_list_node);
+		non_terminal_node->add_child(comma_node);
+		non_terminal_node->add_child(type_specifier_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	| type_specifier ID
 	{
 		log_file << "parameter_list  : type_specifier ID\n";
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @2.first_line);
+		id_node->set_symbol_info($2);
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("parameter_list  : type_specifier ID");
+		non_terminal_node->add_parameter(type_specifier_node->get_type_specifier());
+
+		non_terminal_node->add_child(type_specifier_node);
+		non_terminal_node->add_child(id_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| type_specifier
 	{
 		log_file << "parameter_list  : type_specifier\n";
+
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("parameter_list  : type_specifier");
+		non_terminal_node->add_parameter(type_specifier_node->get_type_specifier());
+
+		non_terminal_node->add_child(type_specifier_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	;
 
@@ -193,10 +482,41 @@ parameter_list  : parameter_list COMMA type_specifier ID
 compound_statement : LCURL statements RCURL
 	{
 		log_file << "compound_statement : LCURL statements RCURL\n";
+
+		TerminalNode* rcurl_node = new TerminalNode(SYMBOLTYPE::RCURL, @3.first_line);
+		rcurl_node->set_symbol_info($3);
+
+		NonterminalNode* statements_node = (NonterminalNode*)$2;
+
+		TerminalNode* lcurl_node = new TerminalNode(SYMBOLTYPE::LCURL, @1.first_line);
+		lcurl_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::COMPOUND_STATEMENT, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("compound_statement : LCURL statements RCURL");
+
+		non_terminal_node->add_child(lcurl_node);
+		non_terminal_node->add_child(statements_node);
+		non_terminal_node->add_child(rcurl_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	| LCURL RCURL
 	{
 		log_file << "compound_statement : LCURL RCURL\n";
+
+		TerminalNode* rcurl_node = new TerminalNode(SYMBOLTYPE::RCURL, @2.first_line);
+		rcurl_node->set_symbol_info($2);
+
+		TerminalNode* lcurl_node = new TerminalNode(SYMBOLTYPE::LCURL, @1.first_line);
+		lcurl_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::COMPOUND_STATEMENT, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("compound_statement : LCURL RCURL");
+
+		non_terminal_node->add_child(lcurl_node);
+		non_terminal_node->add_child(rcurl_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
  	;
  		    
@@ -227,7 +547,6 @@ var_declaration : type_specifier declaration_list SEMICOLON
 			symbol_table.insert((SymbolInfo*)var);
 		}
 
-		cout<<symbol_table<<"\n";
 	}
  	;
  		 
@@ -395,58 +714,282 @@ declaration_list : declaration_list COMMA ID
 statements : statement
 	{
 		log_file << "statements : statement\n";
+
+		NonterminalNode* statement_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENTS, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("statements : statement");
+
+		non_terminal_node->add_child(statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| statements statement
 	{
 		log_file << "statements : statements statement\n";
+
+		NonterminalNode* statement_node = (NonterminalNode*)$2;
+
+		NonterminalNode* statements_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENTS, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("statements : statements statement");
+
+		non_terminal_node->add_child(statements_node);
+		non_terminal_node->add_child(statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	   
 statement : var_declaration
 	{
 		log_file << "statement : var_declaration\n";
+
+		NonterminalNode* var_declaration_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("statement : var_declaration");
+
+		non_terminal_node->add_child(var_declaration_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| expression_statement
 	{
 		log_file << "statement : expression_statement\n";
+
+		NonterminalNode* expression_statement_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("statement : expression_statement");
+
+		non_terminal_node->add_child(expression_statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| compound_statement
 	{
 		log_file << "statement : compound_statement\n";
+
+		NonterminalNode* compound_statement_node = (NonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("statement : compound_statement");
+
+		non_terminal_node->add_child(compound_statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| FOR LPAREN expression_statement expression_statement expression RPAREN statement
 	{
 		log_file << "statement : FOR LPAREN expression_statement expression_statement expression RPAREN statement\n";
+
+		NonterminalNode* statement_node = (NonterminalNode*)$7;
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @6.first_line);
+		rparen_node->set_symbol_info($6);
+
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$5;
+
+		NonterminalNode* expression_statement_node2 = (NonterminalNode*)$4;
+
+		NonterminalNode* expression_statement_node1 = (NonterminalNode*)$3;
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
+		lparen_node->set_symbol_info($2);
+
+		TerminalNode* for_node = new TerminalNode(SYMBOLTYPE::FOR, @1.first_line);
+		for_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @7.last_line);
+		non_terminal_node->set_production_rule("statement : FOR LPAREN expression_statement expression_statement expression RPAREN statement");
+
+		non_terminal_node->add_child(for_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(expression_statement_node1);
+		non_terminal_node->add_child(expression_statement_node2);
+		non_terminal_node->add_child(expression_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| IF LPAREN expression RPAREN statement
 	{
 		log_file << "statement : IF LPAREN expression RPAREN statement\n";
+
+		NonterminalNode* statement_node = (NonterminalNode*)$5;
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
+		lparen_node->set_symbol_info($2);
+
+		TerminalNode* if_node = new TerminalNode(SYMBOLTYPE::IF, @1.first_line);
+		if_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @5.last_line);
+		non_terminal_node->set_production_rule("statement : IF LPAREN expression RPAREN statement");
+
+		non_terminal_node->add_child(if_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(expression_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| IF LPAREN expression RPAREN statement ELSE statement
 	{
 		log_file << "statement : IF LPAREN expression RPAREN statement ELSE statement\n";
+
+		NonterminalNode* statement_node2 = (NonterminalNode*)$7;
+
+		TerminalNode* else_node = new TerminalNode(SYMBOLTYPE::ELSE, @6.first_line);
+		else_node->set_symbol_info($6);
+
+		NonterminalNode* statement_node1 = (NonterminalNode*)$5;
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
+		lparen_node->set_symbol_info($2);
+
+		TerminalNode* if_node = new TerminalNode(SYMBOLTYPE::IF, @1.first_line);
+		if_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @7.last_line);
+		non_terminal_node->set_production_rule("statement : IF LPAREN expression RPAREN statement ELSE statement");
+
+		non_terminal_node->add_child(if_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(expression_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(statement_node1);
+		non_terminal_node->add_child(else_node);
+		non_terminal_node->add_child(statement_node2);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| WHILE LPAREN expression RPAREN statement
 	{
 		log_file << "statement : WHILE LPAREN expression RPAREN statement\n";
+
+		NonterminalNode* statement_node = (NonterminalNode*)$5;
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
+		lparen_node->set_symbol_info($2);
+
+		TerminalNode* while_node = new TerminalNode(SYMBOLTYPE::WHILE, @1.first_line);
+		while_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @5.last_line);
+		non_terminal_node->set_production_rule("statement : WHILE LPAREN expression RPAREN statement");
+
+		non_terminal_node->add_child(while_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(expression_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(statement_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| PRINTLN LPAREN ID RPAREN SEMICOLON
 	{
 		log_file << "statement : PRINTLN LPAREN ID RPAREN SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @5.first_line);
+		semicolon_node->set_symbol_info($5);
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @3.first_line);
+		//todo: check if ID is declared and set symbol info
+		id_node->set_symbol_info($3);
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
+		lparen_node->set_symbol_info($2);
+
+		TerminalNode* println_node = new TerminalNode(SYMBOLTYPE::PRINTLN, @1.first_line);
+		println_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @5.last_line);
+		non_terminal_node->set_production_rule("statement : PRINTLN LPAREN ID RPAREN SEMICOLON");
+
+		non_terminal_node->add_child(println_node);
+		non_terminal_node->add_child(lparen_node);
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(rparen_node);
+		non_terminal_node->add_child(semicolon_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| RETURN expression SEMICOLON
 	{
 		log_file << "statement : RETURN expression SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @3.first_line);
+		semicolon_node->set_symbol_info($3);
+
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$2;
+
+		TerminalNode* return_node = new TerminalNode(SYMBOLTYPE::RETURN, @1.first_line);
+		return_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::STATEMENT, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("statement : RETURN expression SEMICOLON");
+
+		non_terminal_node->add_child(return_node);
+		non_terminal_node->add_child(expression_node);
+		non_terminal_node->add_child(semicolon_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	  
 expression_statement : SEMICOLON			
 	{
 		log_file << "expression_statement : SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @1.first_line);
+		semicolon_node->set_symbol_info($1);
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::EXPRESSION_STATEMENT, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("expression_statement : SEMICOLON");
+
+		non_terminal_node->add_child(semicolon_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| expression SEMICOLON 
 	{
 		log_file << "expression_statement : expression SEMICOLON\n";
+
+		TerminalNode* semicolon_node = new TerminalNode(SYMBOLTYPE::SEMICOLON, @2.first_line);
+		semicolon_node->set_symbol_info($2);
+
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$1;
+
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::EXPRESSION_STATEMENT, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("expression_statement : expression SEMICOLON");
+
+		non_terminal_node->add_child(expression_node);
+		non_terminal_node->add_child(semicolon_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	  
@@ -487,7 +1030,7 @@ variable : ID
 		TerminalNode* rthird_node = new TerminalNode(SYMBOLTYPE::RTHIRD, @4.first_line);
 		rthird_node->set_symbol_info($4);
 
-		//todo: handle expression node
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$3;
 
 		TerminalNode* lthird_node = new TerminalNode(SYMBOLTYPE::LTHIRD, @2.first_line);
 		lthird_node->set_symbol_info($2);
@@ -497,11 +1040,11 @@ variable : ID
 
 		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::VARIABLE, @1.first_line, @4.last_line);
 		non_terminal_node->set_production_rule("variable : ID LTHIRD expression RTHIRD");
-		//todo: handle type_specifier
+		non_terminal_node->set_type_specifier(expression_node->get_type_specifier());
 
 		non_terminal_node->add_child(id_node);
 		non_terminal_node->add_child(lthird_node);
-		//todo: add expression node
+		non_terminal_node->add_child(expression_node);
 		non_terminal_node->add_child(rthird_node);
 
 		$$ = (Node*)non_terminal_node;
@@ -511,52 +1054,191 @@ variable : ID
 expression : logic_expression	
 	{
 		log_file << "expression : logic_expression\n";
+
+		TypedNonterminalNode* logic_expression_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::EXPRESSION, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("expression : logic_expression");
+		non_terminal_node->set_type_specifier(logic_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(logic_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| variable ASSIGNOP logic_expression 	
 	{
 		log_file << "expression : variable ASSIGNOP logic_expression\n";
+
+		TypedNonterminalNode* logic_expression_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* assignop_node = new TerminalNode(SYMBOLTYPE::ASSIGNOP, @2.first_line);
+		assignop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* variable_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::EXPRESSION, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("expression : variable ASSIGNOP logic_expression");
+
+		//todo: check type_specifier
+
+		non_terminal_node->add_child(variable_node);
+		non_terminal_node->add_child(assignop_node);
+		non_terminal_node->add_child(logic_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 			
 logic_expression : rel_expression 	
 	{
 		log_file << "logic_expression : rel_expression\n";
+
+		TypedNonterminalNode* rel_expression_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::LOGIC_EXPRESSION, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("logic_expression : rel_expression");
+		non_terminal_node->set_type_specifier(rel_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(rel_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| rel_expression LOGICOP rel_expression 	
 	{
 		log_file << "logic_expression : rel_expression LOGICOP rel_expression\n";
+
+		TypedNonterminalNode* rel_expression_node2 = (TypedNonterminalNode*)$3;
+
+		TerminalNode* logicop_node = new TerminalNode(SYMBOLTYPE::LOGICOP, @2.first_line);
+		logicop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* rel_expression_node1 = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::LOGIC_EXPRESSION, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("logic_expression : rel_expression LOGICOP rel_expression");
+		//todo: handle type_specifier 
+
+		non_terminal_node->add_child(rel_expression_node1);
+		non_terminal_node->add_child(logicop_node);
+		non_terminal_node->add_child(rel_expression_node2);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 			
 rel_expression	: simple_expression 
 	{
 		log_file << "rel_expression	: simple_expression\n";
+
+		TypedNonterminalNode* simple_expression_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::REL_EXPRESSION, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("rel_expression	: simple_expression");
+		non_terminal_node->set_type_specifier(simple_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(simple_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| simple_expression RELOP simple_expression	
 	{
 		log_file << "rel_expression	: simple_expression RELOP simple_expression\n";
+
+		TypedNonterminalNode* simple_expression_node2 = (TypedNonterminalNode*)$3;
+
+		TerminalNode* relop_node = new TerminalNode(SYMBOLTYPE::RELOP, @2.first_line);
+		relop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* simple_expression_node1 = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::REL_EXPRESSION, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("rel_expression	: simple_expression RELOP simple_expression");
+
+		//todo: handle type_specifier
+
+		non_terminal_node->add_child(simple_expression_node1);
+		non_terminal_node->add_child(relop_node);
+		non_terminal_node->add_child(simple_expression_node2);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 				
 simple_expression : term 
 	{
 		log_file << "simple_expression : term\n";
+
+		TypedNonterminalNode* term_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::SIMPLE_EXPRESSION, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("simple_expression : term");
+		non_terminal_node->set_type_specifier(term_node->get_type_specifier());
+
+		non_terminal_node->add_child(term_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| simple_expression ADDOP term 
 	{
 		log_file << "simple_expression : simple_expression ADDOP term\n";
+
+		TypedNonterminalNode* term_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* addop_node = new TerminalNode(SYMBOLTYPE::ADDOP, @2.first_line);
+		addop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* simple_expression_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::SIMPLE_EXPRESSION, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("simple_expression : simple_expression ADDOP term");
+
+		//todo: handle type_specifier
+
+		non_terminal_node->add_child(simple_expression_node);
+		non_terminal_node->add_child(addop_node);
+		non_terminal_node->add_child(term_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 					
 term :	unary_expression
 	{
-		log_file << "term :	unary_expression\n";
+		log_file << "term : unary_expression\n";
+
+		TypedNonterminalNode* unary_expression_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::TERM, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("term : unary_expression");
+		non_terminal_node->set_type_specifier(unary_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(unary_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
     |  term MULOP unary_expression
 	{
 		log_file << "term :	term MULOP unary_expression\n";
+
+		TypedNonterminalNode* unary_expression_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* mulop_node = new TerminalNode(SYMBOLTYPE::MULOP, @2.first_line);
+		mulop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* term_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::TERM, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("term :	term MULOP unary_expression");
+
+		// todo: handle type_specifier
+
+		non_terminal_node->add_child(term_node);
+		non_terminal_node->add_child(mulop_node);
+		non_terminal_node->add_child(unary_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
-     ;
+    ;
 
 unary_expression : ADDOP unary_expression  
 	{
@@ -565,6 +1247,7 @@ unary_expression : ADDOP unary_expression
 		TypedNonterminalNode* unary_expression_node = (TypedNonterminalNode*)$2;
 
 		TerminalNode* addop_node = new TerminalNode(SYMBOLTYPE::ADDOP, @1.first_line);
+		addop_node->set_symbol_info($1);
 
 		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::UNARY_EXPRESSION, @1.first_line, @2.last_line);
 		non_terminal_node->set_production_rule("unary_expression : ADDOP unary_expression");
@@ -631,7 +1314,7 @@ factor	: variable
 		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
 		rparen_node->set_symbol_info($4);
 
-		//todo: handle argument_list node
+		ParameterListNode* argument_list_node = (ParameterListNode*)$3;
 
 		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
 		lparen_node->set_symbol_info($2);
@@ -645,7 +1328,7 @@ factor	: variable
 
 		non_terminal_node->add_child(id_node);
 		non_terminal_node->add_child(lparen_node);
-		//todo: add argument_list node
+		non_terminal_node->add_child(argument_list_node);
 		non_terminal_node->add_child(rparen_node);
 
 		$$ = (Node*)non_terminal_node;
@@ -657,17 +1340,17 @@ factor	: variable
 		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @3.first_line);
 		rparen_node->set_symbol_info($3);
 
-		//todo: handle expression node
+		TypedNonterminalNode* expression_node = (TypedNonterminalNode*)$2;
 
 		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @1.first_line);
 		lparen_node->set_symbol_info($1);
 
 		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @3.last_line);
 		non_terminal_node->set_production_rule("factor : LPAREN expression RPAREN");
-		//todo: handle type_specifier
+		non_terminal_node->set_type_specifier(expression_node->get_type_specifier());
 
 		non_terminal_node->add_child(lparen_node);
-		//todo: add expression node
+		non_terminal_node->add_child(expression_node);
 		non_terminal_node->add_child(rparen_node);
 
 		$$ = (Node*)non_terminal_node;
@@ -743,6 +1426,16 @@ factor	: variable
 argument_list : arguments
 	{
 		log_file << "argument_list : arguments\n";
+
+		ParameterListNode* arguments_node = (ParameterListNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::ARGUMENT_LIST, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("argument_list : arguments");
+		non_terminal_node->set_parameters(arguments_node->get_parameters());
+
+		non_terminal_node->add_child(arguments_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	|
 	{
@@ -753,10 +1446,38 @@ argument_list : arguments
 arguments : arguments COMMA logic_expression
 	{
 		log_file << "arguments : arguments COMMA logic_expression\n";
+
+		TypedNonterminalNode* logic_expression_node = (TypedNonterminalNode*)$3;
+
+		TerminalNode* comma_node = new TerminalNode(SYMBOLTYPE::COMMA, @2.first_line);
+		comma_node->set_symbol_info($2);
+
+		ParameterListNode* arguments_node = (ParameterListNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("arguments : arguments COMMA logic_expression");
+		non_terminal_node->set_parameters(arguments_node->get_parameters());
+		non_terminal_node->add_parameter(logic_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(arguments_node);
+		non_terminal_node->add_child(comma_node);
+		non_terminal_node->add_child(logic_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| logic_expression
 	{
 		log_file << "arguments : logic_expression\n";
+
+		TypedNonterminalNode* logic_expression_node = (TypedNonterminalNode*)$1;
+
+		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("arguments : logic_expression");
+		non_terminal_node->add_parameter(logic_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(logic_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
  

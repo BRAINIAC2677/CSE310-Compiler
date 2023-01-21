@@ -43,12 +43,12 @@ map<SYMBOLTYPE, string> aa_terminal_symbols = {
     {ASSIGNOP, "ASSIGNOP"},
     {LOGICOP, "LOGICOP"},
     {NOT, "NOT"},
-    {LPAREN, "("},
-    {RPAREN, ")"},
-    {LCURL, "{"},
-    {RCURL, "}"},
-    {LTHIRD, "["},
-    {RTHIRD, "]"},
+    {LPAREN, "LPAREN"},
+    {RPAREN, "RPAREN"},
+    {LCURL, "LCURL"},
+    {RCURL, "RCURL"},
+    {LTHIRD, "LTHIRD"},
+    {RTHIRD, "RTHIRD"},
     {SEMICOLON, "SEMICOLON"},
     {COMMA, "COMMA"},
     {PRINTLN, "PRINTLN"},
@@ -117,7 +117,7 @@ void Node::print_parsetree(Node *root, ofstream &out, int depth)
   if (aa_nonterminal_symbols.find(symbol_type) != aa_nonterminal_symbols.end())
   {
     NonterminalNode *nonterminal_node = (NonterminalNode *)root;
-    out << (nonterminal_node->get_production_rule()) << " <Line: " << nonterminal_node->get_start_lineno() << "-" << nonterminal_node->get_end_lineno() << ">\n";
+    out << (nonterminal_node->get_production_rule()) << "\t<Line: " << nonterminal_node->get_start_lineno() << "-" << nonterminal_node->get_end_lineno() << ">\n";
     for (Node *child : nonterminal_node->get_children())
     {
       print_parsetree(child, out, depth + 1);
@@ -180,9 +180,20 @@ vector<SYMBOLTYPE> ParameterListNode::get_parameters()
   return this->parameters;
 }
 
+vector<string> ParameterListNode::get_parameter_names()
+{
+  return this->parameter_names;
+}
+
 ParameterListNode *ParameterListNode::set_parameters(vector<SYMBOLTYPE> parameters)
 {
   this->parameters = parameters;
+  return this;
+}
+
+ParameterListNode *ParameterListNode::set_parameter_names(vector<string> parameter_names)
+{
+  this->parameter_names = parameter_names;
   return this;
 }
 

@@ -151,7 +151,7 @@ ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept
             else if (current_symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
             {
                 FuncInfo *func_info = (FuncInfo *)current_symbol_info;
-                out << "<" << current_symbol_info->get_lexeme() << ", FUNCTION " << aa_terminal_symbols[func_info->get_return_type_specifier()] << "> ";
+                out << "<" << current_symbol_info->get_lexeme() << ", FUNCTION, " << aa_terminal_symbols[func_info->get_return_type_specifier()] << "> ";
             }
             else
             {

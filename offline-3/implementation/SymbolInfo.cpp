@@ -41,12 +41,37 @@ SymbolInfo *SymbolInfo::set_next_symbol_info(SymbolInfo *next_symbol_info) noexc
 
 FuncInfo::FuncInfo() noexcept : SymbolInfo(), return_type_specifier(NULL_SYMBOL)
 {
-  this->param_type_specifier = vector<SYMBOLTYPE>();
+  this->param_type_specifiers = vector<SYMBOLTYPE>();
+}
+
+FuncInfo::FuncInfo(SymbolInfo *symbol_info) noexcept : SymbolInfo(), return_type_specifier(NULL_SYMBOL)
+{
+  this->param_type_specifiers = vector<SYMBOLTYPE>();
+  this->set_lexeme(symbol_info->get_lexeme());
+  this->set_type(SYMBOLTYPE::FUNC_ID);
+  this->set_next_symbol_info(symbol_info->get_next_symbol_info());
 }
 
 SYMBOLTYPE FuncInfo::get_return_type_specifier()
 {
   return this->return_type_specifier;
+}
+
+vector<SYMBOLTYPE> FuncInfo::get_param_type_specifiers()
+{
+  return this->param_type_specifiers;
+}
+
+FuncInfo *FuncInfo::set_return_type_specifier(SYMBOLTYPE return_type_specifier)
+{
+  this->return_type_specifier = return_type_specifier;
+  return this;
+}
+
+FuncInfo *FuncInfo::set_param_type_specifiers(vector<SYMBOLTYPE> param_type_specifiers)
+{
+  this->param_type_specifiers = param_type_specifiers;
+  return this;
 }
 
 bool FuncInfo::is_return_type_same(SYMBOLTYPE arg_return_type_specifier)
@@ -56,14 +81,14 @@ bool FuncInfo::is_return_type_same(SYMBOLTYPE arg_return_type_specifier)
 
 bool FuncInfo::is_param_type_same(vector<SYMBOLTYPE> arg_param_type_specifier)
 {
-  if (arg_param_type_specifier.size() != this->param_type_specifier.size())
+  if (arg_param_type_specifier.size() != this->param_type_specifiers.size())
   {
     return false;
   }
   for (int i = 0; i < arg_param_type_specifier.size(); i++)
   {
     // todo: handle implicit type-casting
-    if (this->param_type_specifier[i] != arg_param_type_specifier[i])
+    if (this->param_type_specifiers[i] != arg_param_type_specifier[i])
     {
       return true;
     }

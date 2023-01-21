@@ -91,12 +91,17 @@ public:
 class FuncInfo : public SymbolInfo
 {
   SYMBOLTYPE return_type_specifier;
-  vector<SYMBOLTYPE> param_type_specifier;
+  vector<SYMBOLTYPE> param_type_specifiers;
 
 public:
   FuncInfo() noexcept;
+  FuncInfo(SymbolInfo *symbol_info) noexcept;
 
   SYMBOLTYPE get_return_type_specifier();
+  vector<SYMBOLTYPE> get_param_type_specifiers();
+
+  FuncInfo *set_return_type_specifier(SYMBOLTYPE return_type_specifier);
+  FuncInfo *set_param_type_specifiers(vector<SYMBOLTYPE> param_type_specifiers);
 
   bool is_return_type_same(SYMBOLTYPE arg_return_type_specifier);
   bool is_param_type_same(vector<SYMBOLTYPE> arg_param_type_specifier);
