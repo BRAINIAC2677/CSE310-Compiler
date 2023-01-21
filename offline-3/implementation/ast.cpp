@@ -173,6 +173,8 @@ SymbolInfo *TerminalNode::get_symbol_info()
 ParameterListNode::ParameterListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : NonterminalNode(symbol_type, start_lineno, end_lineno)
 {
   this->parameters = vector<SYMBOLTYPE>();
+  this->parameter_count = map<string, int>();
+  this->declared_variables = vector<VarInfo *>();
 }
 
 vector<SYMBOLTYPE> ParameterListNode::get_parameters()
@@ -180,9 +182,14 @@ vector<SYMBOLTYPE> ParameterListNode::get_parameters()
   return this->parameters;
 }
 
-vector<string> ParameterListNode::get_parameter_names()
+map<string, int> ParameterListNode::get_parameter_count()
 {
-  return this->parameter_names;
+  return this->parameter_count;
+}
+
+vector<VarInfo *> ParameterListNode::get_declared_variables()
+{
+  return this->declared_variables;
 }
 
 ParameterListNode *ParameterListNode::set_parameters(vector<SYMBOLTYPE> parameters)
@@ -191,15 +198,33 @@ ParameterListNode *ParameterListNode::set_parameters(vector<SYMBOLTYPE> paramete
   return this;
 }
 
-ParameterListNode *ParameterListNode::set_parameter_names(vector<string> parameter_names)
+ParameterListNode *ParameterListNode::set_parameter_count(map<string, int> parameter_count)
 {
-  this->parameter_names = parameter_names;
+  this->parameter_count = parameter_count;
+  return this;
+}
+
+ParameterListNode *ParameterListNode::set_declared_variables(vector<VarInfo *> declared_variables)
+{
+  this->declared_variables = declared_variables;
   return this;
 }
 
 ParameterListNode *ParameterListNode::add_parameter(SYMBOLTYPE parameter)
 {
   this->parameters.push_back(parameter);
+  return this;
+}
+
+ParameterListNode *ParameterListNode::add_declared_variable(VarInfo *declared_variable)
+{
+  this->declared_variables.push_back(declared_variable);
+  return this;
+}
+
+ParameterListNode *ParameterListNode::increase_parameter_count(string parameter_name)
+{
+  this->parameter_count[parameter_name]++;
   return this;
 }
 

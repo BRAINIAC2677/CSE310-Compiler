@@ -55,18 +55,23 @@ public:
 class ParameterListNode : public NonterminalNode
 {
   vector<SYMBOLTYPE> parameters;
-  vector<string> parameter_names;
+  map<string, int> parameter_count;
+  vector<VarInfo *> declared_variables;
 
 public:
   ParameterListNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
   vector<SYMBOLTYPE> get_parameters();
-  vector<string> get_parameter_names();
+  map<string, int> get_parameter_count();
+  vector<VarInfo *> get_declared_variables();
 
   ParameterListNode *set_parameters(vector<SYMBOLTYPE> parameters);
-  ParameterListNode *set_parameter_names(vector<string> parameter_names);
+  ParameterListNode *set_parameter_count(map<string, int> parameter_count);
+  ParameterListNode *set_declared_variables(vector<VarInfo *> declared_variables);
 
   ParameterListNode *add_parameter(SYMBOLTYPE parameter);
+  ParameterListNode *add_declared_variable(VarInfo *declared_variable);
+  ParameterListNode *increase_parameter_count(string parameter);
 
   bool is_parameters_compatible(ParameterListNode *parameter_list_node);
 };

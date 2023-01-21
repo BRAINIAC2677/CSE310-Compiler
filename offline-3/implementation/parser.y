@@ -63,24 +63,84 @@ using namespace std;
 		error_file << "Line# " << lineno << ": " << error_msg << "\n";
 	}
 
+	void error_parameter_redefinition(int lineno, string parameter_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Redefinition of parameter '" << parameter_name << "'\n";
+	}
+
+	void error_conflicting_type(int lineno, string id_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Conflicting types for '" << id_name << "'\n";
+	}
+
+	void error_redeclared_different_kind(int lineno, string id_name)
+	{
+		error_file << "Line# " << lineno << ": " << "'" << id_name << "' redeclared as different kind of symbol\n";
+	}
+
+	void error_void_variable(int lineno, string variable_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Variable or field '" << variable_name << "' declared void\n";
+	}
+
+	void error_argument_type_mismatch(int lineno, int argno, string function_name)
+	{
+		error_file << "Line# " << lineno << ": Type mismatch for argument " << argno << " of '" << function_name << "'\n"; 
+	}
+
+	void error_too_few_arguments(int lineno, string function_name)
+	{
+		error_file << "Line# " << lineno << ": Too few arguments to function '" << function_name << "'\n";
+	}
+
+	void error_too_many_arguments(int lineno, string function_name)
+	{
+		error_file << "Line# " << lineno << ": Too many arguments to function '" << function_name << "'\n";
+	}
+
 	void error_undeclared_variable(int lineno, string variable_name)
 	{
 		error_file << "Line# " << lineno << ": " << "Undeclared variable '" << variable_name << "'\n";
 	}
 
+	void error_undeclared_function(int lineno, string function_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Undeclared function '" << function_name << "'\n";
+	}
+
+	void error_not_an_array(int lineno, string variable_name)
+	{
+		error_file << "Line# " << lineno << ": " << "'" << variable_name << "' is not an array\n";
+	}
+
+	void error_array_index_not_integer(int lineno)
+	{
+		error_file << "Line# " << lineno << ": " << "Array index is not an integer\n";
+	}
+
+	void error_void_in_expression(int lineno)
+	{
+		error_file << "Line# " << lineno << ": " << "Void cannot be used in expression\n";
+	}
+
+	void warning_data_loss(int lineno, SYMBOLTYPE from, SYMBOLTYPE to)
+	{
+		error_file << "Line# " << lineno << ": " << "Warning: possible loss of data in assignment of "<<aa_terminal_symbols[from]<<" to "<<aa_terminal_symbols[to]<<"\n";
+	}
+
+	void warning_div_by_zero(int lineno)
+	{
+		error_file << "Line# " << lineno << ": " << "Warning: division by zero\n";
+	}
+
+	void error_nonint_mod_op(int lineno)
+	{
+		error_file << "Line# " << lineno << ": " << "Operands of modulus must be integers\n";
+	}
+
 	void error_redeclared_function(int lineno, string function_name)
 	{
 		error_file << "Line# " << lineno << ": " << "Redeclared function '" << function_name << "'\n";
-	}
-
-	void error_conflicting_type(int lineno, string id_name)
-	{
-		error_file << "Line# " << lineno << ": " << "Conflicting type for '" << id_name << "'\n";
-	}
-
-	void error_parameter_redifinition(int lineno, string parameter_name)
-	{
-		error_file << "Line# " << lineno << ": " << "Redefinition of parameter '" << parameter_name << "'\n";
 	}
 
 }
@@ -273,6 +333,15 @@ func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON
 		}
 		else 
 		{
+			//handling multiple parameters with same name
+			map<string, int> parameter_count = parameter_list_node->get_parameter_count();
+			for(auto p: parameter_count)
+			{
+				if(p.second > 1)
+				{
+					error_parameter_redefinition(@2.first_line, p.first);
+				}
+			}
 
 			FuncInfo* func_info = new FuncInfo($2);
 			func_info->set_return_type_specifier(type_specifier_node->get_type_specifier());
@@ -364,7 +433,48 @@ func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statem
 		non_terminal_node->add_child(rparen_node);
 		non_terminal_node->add_child(compound_statement_node);
 
+
 		$$ = (Node*)non_terminal_node;
+
+        SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
+
+		if(symbol_info == NULL_SYMBOL_INFO) 
+		{
+			//handling multiple parameters with same name
+			map<string, int> parameter_count = parameter_list_node->get_parameter_count();
+			for(auto p: parameter_count)
+			{
+				if(p.second > 1)
+				{
+					error_parameter_redefinition(@2.first_line, p.first);
+				}
+			}
+
+			FuncInfo* func_info = new FuncInfo($2);
+			func_info->set_return_type_specifier(type_specifier_node->get_type_specifier());
+			func_info->set_param_type_specifiers(parameter_list_node->get_parameters());
+
+			symbol_table.insert((SymbolInfo*)func_info);
+
+		}
+		else if(symbol_info->get_type() == SYMBOLTYPE::VAR_ID)
+		{
+			error_redeclared_different_kind(@2.first_line, $2->get_lexeme());
+		}
+		else if(symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+		{
+			FuncInfo* func_info = (FuncInfo*)symbol_info;
+
+			if(!func_info->is_return_type_same(type_specifier_node->get_type_specifier()))
+			{
+				error_conflicting_type(@2.first_line, $2->get_lexeme());
+			}
+			else if(!func_info->is_param_type_same(parameter_list_node->get_parameters()))
+			{
+				error_conflicting_type(@2.first_line, $2->get_lexeme());
+			}
+		}
+
 	}
 	| type_specifier ID LPAREN RPAREN compound_statement
 	{
@@ -394,6 +504,27 @@ func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statem
 
 		$$ = (Node*)non_terminal_node;
 
+        SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
+
+		if(symbol_info == NULL_SYMBOL_INFO) 
+		{
+			FuncInfo* func_info = new FuncInfo($2);
+			func_info->set_return_type_specifier(type_specifier_node->get_type_specifier());
+
+			symbol_table.insert((SymbolInfo*)func_info);
+		}
+		else if(symbol_info->get_type() == SYMBOLTYPE::VAR_ID)
+		{
+			error_redeclared_different_kind(@2.first_line, $2->get_lexeme());
+		}
+		else if(symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+		{
+			FuncInfo* func_info = (FuncInfo*)symbol_info;
+			if(!func_info->is_return_type_same(type_specifier_node->get_type_specifier()))
+			{
+				error_conflicting_type(@2.first_line, $2->get_lexeme());
+			}
+		}
 	}
  	;				
 
@@ -414,7 +545,10 @@ parameter_list  : parameter_list COMMA type_specifier ID
 
 		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @4.last_line);
 		non_terminal_node->set_production_rule("parameter_list  : parameter_list COMMA type_specifier ID");
+		non_terminal_node->set_parameters(parameter_list_node->get_parameters());
 		non_terminal_node->add_parameter(type_specifier_node->get_type_specifier());
+		non_terminal_node->set_parameter_count(parameter_list_node->get_parameter_count());
+		non_terminal_node->increase_parameter_count($4->get_lexeme());
 
 		non_terminal_node->add_child(parameter_list_node);
 		non_terminal_node->add_child(comma_node);
@@ -437,6 +571,8 @@ parameter_list  : parameter_list COMMA type_specifier ID
 		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @3.last_line);
 		non_terminal_node->set_production_rule("parameter_list  : parameter_list COMMA type_specifier");
 		non_terminal_node->set_parameters(parameter_list_node->get_parameters());
+		non_terminal_node->add_parameter(type_specifier_node->get_type_specifier());
+		non_terminal_node->set_parameter_count(parameter_list_node->get_parameter_count());
 
 		non_terminal_node->add_child(parameter_list_node);
 		non_terminal_node->add_child(comma_node);
@@ -456,6 +592,7 @@ parameter_list  : parameter_list COMMA type_specifier ID
 		ParameterListNode* non_terminal_node = new ParameterListNode(SYMBOLTYPE::PARAMETER_LIST, @1.first_line, @2.last_line);
 		non_terminal_node->set_production_rule("parameter_list  : type_specifier ID");
 		non_terminal_node->add_parameter(type_specifier_node->get_type_specifier());
+		non_terminal_node->increase_parameter_count($2->get_lexeme());
 
 		non_terminal_node->add_child(type_specifier_node);
 		non_terminal_node->add_child(id_node);
@@ -479,19 +616,19 @@ parameter_list  : parameter_list COMMA type_specifier ID
  	;
 
  		
-compound_statement : LCURL statements RCURL
+compound_statement : LCURL scope statements RCURL
 	{
 		log_file << "compound_statement : LCURL statements RCURL\n";
 
-		TerminalNode* rcurl_node = new TerminalNode(SYMBOLTYPE::RCURL, @3.first_line);
-		rcurl_node->set_symbol_info($3);
+		TerminalNode* rcurl_node = new TerminalNode(SYMBOLTYPE::RCURL, @4.first_line);
+		rcurl_node->set_symbol_info($4);
 
-		NonterminalNode* statements_node = (NonterminalNode*)$2;
+		NonterminalNode* statements_node = (NonterminalNode*)$3;
 
 		TerminalNode* lcurl_node = new TerminalNode(SYMBOLTYPE::LCURL, @1.first_line);
 		lcurl_node->set_symbol_info($1);
 
-		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::COMPOUND_STATEMENT, @1.first_line, @3.last_line);
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::COMPOUND_STATEMENT, @1.first_line, @4.last_line);
 		non_terminal_node->set_production_rule("compound_statement : LCURL statements RCURL");
 
 		non_terminal_node->add_child(lcurl_node);
@@ -499,27 +636,37 @@ compound_statement : LCURL statements RCURL
 		non_terminal_node->add_child(rcurl_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		log_file <<symbol_table;
+		symbol_table.exit_scope();
 	}
- 	| LCURL RCURL
+ 	| LCURL scope RCURL
 	{
 		log_file << "compound_statement : LCURL RCURL\n";
 
-		TerminalNode* rcurl_node = new TerminalNode(SYMBOLTYPE::RCURL, @2.first_line);
-		rcurl_node->set_symbol_info($2);
+		TerminalNode* rcurl_node = new TerminalNode(SYMBOLTYPE::RCURL, @3.first_line);
+		rcurl_node->set_symbol_info($3);
 
 		TerminalNode* lcurl_node = new TerminalNode(SYMBOLTYPE::LCURL, @1.first_line);
 		lcurl_node->set_symbol_info($1);
 
-		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::COMPOUND_STATEMENT, @1.first_line, @2.last_line);
+		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::COMPOUND_STATEMENT, @1.first_line, @3.last_line);
 		non_terminal_node->set_production_rule("compound_statement : LCURL RCURL");
 
 		non_terminal_node->add_child(lcurl_node);
 		non_terminal_node->add_child(rcurl_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		log_file <<symbol_table;
+		symbol_table.exit_scope();
 	}
  	;
- 		    
+
+scope : 
+{
+	symbol_table.enter_scope();
+};	    
 var_declaration : type_specifier declaration_list SEMICOLON
 	{
 		log_file << "var_declaration : type_specifier declaration_list SEMICOLON\n";
@@ -541,10 +688,27 @@ var_declaration : type_specifier declaration_list SEMICOLON
 		$$ = (Node*)non_terminal_node;
 
 		// setting type_specifier of all the variables in the declaration_list
+		
 		for(auto var: declaration_list_node->get_declared_variables())
 		{
-			var->set_type_specifier(type_specifier_node->get_type_specifier());
-			symbol_table.insert((SymbolInfo*)var);
+            if(type_specifier_node->get_type_specifier() == SYMBOLTYPE::VOID)
+			{
+				error_void_variable(@1.first_line, var->get_lexeme());
+			}
+			else
+			{
+				SymbolInfo *symbol_info = symbol_table.lookup(var->get_lexeme());
+
+				if(symbol_info == NULL_SYMBOL_INFO)
+				{
+					var->set_type_specifier(type_specifier_node->get_type_specifier());
+					symbol_table.insert((SymbolInfo*)var);
+				}
+				else 
+				{
+					error_conflicting_type(@1.first_line, var->get_lexeme());
+				}
+			}
 		}
 
 	}
@@ -842,6 +1006,11 @@ statement : var_declaration
 		non_terminal_node->add_child(statement_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		if(expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@3.first_line, "void expression cannot b e in a if statement");
+		}
 	}
 	| IF LPAREN expression RPAREN statement ELSE statement
 	{
@@ -877,6 +1046,11 @@ statement : var_declaration
 		non_terminal_node->add_child(statement_node2);
 
 		$$ = (Node*)non_terminal_node;
+
+		if(expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@3.first_line, "void expression cannot b e in a if statement");
+		}
 	}
 	| WHILE LPAREN expression RPAREN statement
 	{
@@ -905,6 +1079,11 @@ statement : var_declaration
 		non_terminal_node->add_child(statement_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		if(expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@3.first_line, "void expression cannot b e in a while statement");
+		}
 	}
 	| PRINTLN LPAREN ID RPAREN SEMICOLON
 	{
@@ -936,6 +1115,12 @@ statement : var_declaration
 		non_terminal_node->add_child(semicolon_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		SymbolInfo* symbol_info = symbol_table.lookup($3->get_lexeme());
+		if(symbol_info == NULL_SYMBOL_INFO)
+		{
+			error_undeclared_variable(@3.first_line, $3->get_lexeme());
+		}
 	}
 	| RETURN expression SEMICOLON
 	{
@@ -957,6 +1142,11 @@ statement : var_declaration
 		non_terminal_node->add_child(semicolon_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		if(expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@2.first_line, "void expression cannot b e in a return statement");
+		}
 	}
 	;
 	  
@@ -1014,7 +1204,7 @@ variable : ID
 		}
 		else
 		{
-			VarInfo* var_info = (VarInfo*)symbol_info;
+			VarInfo* var_info = (VarInfo*)symbol_info;   	
 			non_terminal_node->set_type_specifier(var_info->get_type_specifier());
 		}
 
@@ -1040,7 +1230,28 @@ variable : ID
 
 		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::VARIABLE, @1.first_line, @4.last_line);
 		non_terminal_node->set_production_rule("variable : ID LTHIRD expression RTHIRD");
-		non_terminal_node->set_type_specifier(expression_node->get_type_specifier());
+
+        SymbolInfo* symbol_info = symbol_table.lookup($1->get_lexeme());
+		if(symbol_info == NULL_SYMBOL_INFO)
+		{
+			//error
+			error_undeclared_variable( @1.first_line, $1->get_lexeme());
+		}
+		else if(symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+		{
+			error_default(@1.first_line, "function cannot be used as an array");
+		}
+		else
+		{
+			VarInfo* var_info = (VarInfo*)symbol_info;
+
+			if(var_info->get_array_size() < 0)
+			{
+				error_not_an_array(@1.first_line, $1->get_lexeme());
+			}
+		    	
+		    non_terminal_node->set_type_specifier(var_info->get_type_specifier());
+		}
 
 		non_terminal_node->add_child(id_node);
 		non_terminal_node->add_child(lthird_node);
@@ -1048,6 +1259,12 @@ variable : ID
 		non_terminal_node->add_child(rthird_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		if(expression_node->get_type_specifier() != SYMBOLTYPE::INT)
+		{
+			//error
+			error_array_index_not_integer( @3.first_line);
+		}
 	}
 	;
 	 
@@ -1080,6 +1297,17 @@ expression : logic_expression
 		non_terminal_node->set_production_rule("expression : variable ASSIGNOP logic_expression");
 
 		//todo: check type_specifier
+
+        if(variable_node->get_type_specifier() == SYMBOLTYPE::VOID || logic_expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@1.first_line, "void type is not allowed in assignment expression");
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::VOID);
+		}
+		else if(variable_node->get_type_specifier() == SYMBOLTYPE::INT && logic_expression_node->get_type_specifier() == SYMBOLTYPE::FLOAT)
+		{
+			warning_data_loss(@1.first_line, SYMBOLTYPE::FLOAT, SYMBOLTYPE::INT);
+		}
+
 
 		non_terminal_node->add_child(variable_node);
 		non_terminal_node->add_child(assignop_node);
@@ -1118,6 +1346,20 @@ logic_expression : rel_expression
 		non_terminal_node->set_production_rule("logic_expression : rel_expression LOGICOP rel_expression");
 		//todo: handle type_specifier 
 
+        if(rel_expression_node1->get_type_specifier() == SYMBOLTYPE::VOID || rel_expression_node2->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@1.first_line, "void type is not allowed in logical expression");
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::VOID);
+		}
+		else if(rel_expression_node1->get_type_specifier() == SYMBOLTYPE::FLOAT || rel_expression_node2->get_type_specifier() == SYMBOLTYPE::FLOAT)
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::FLOAT);
+		}
+		else
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::INT);
+		}
+
 		non_terminal_node->add_child(rel_expression_node1);
 		non_terminal_node->add_child(logicop_node);
 		non_terminal_node->add_child(rel_expression_node2);
@@ -1155,6 +1397,19 @@ rel_expression	: simple_expression
 		non_terminal_node->set_production_rule("rel_expression	: simple_expression RELOP simple_expression");
 
 		//todo: handle type_specifier
+    	if(simple_expression_node1->get_type_specifier() == SYMBOLTYPE::VOID || simple_expression_node2->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@1.first_line, "void type is not allowed in relational expression");
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::VOID);
+		}
+		else if(simple_expression_node1->get_type_specifier() == SYMBOLTYPE::FLOAT || simple_expression_node2->get_type_specifier() == SYMBOLTYPE::FLOAT)
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::FLOAT);
+		}
+		else
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::INT);
+		}
 
 		non_terminal_node->add_child(simple_expression_node1);
 		non_terminal_node->add_child(relop_node);
@@ -1193,7 +1448,19 @@ simple_expression : term
 		non_terminal_node->set_production_rule("simple_expression : simple_expression ADDOP term");
 
 		//todo: handle type_specifier
-
+		if(simple_expression_node->get_type_specifier() == SYMBOLTYPE::VOID || term_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@1.first_line, "void type is not allowed in arithmetic expression");
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::VOID);
+		}
+		else if(simple_expression_node->get_type_specifier() == SYMBOLTYPE::FLOAT || term_node->get_type_specifier() == SYMBOLTYPE::FLOAT)
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::FLOAT);
+		}
+		else
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::INT);
+		}
 		non_terminal_node->add_child(simple_expression_node);
 		non_terminal_node->add_child(addop_node);
 		non_terminal_node->add_child(term_node);
@@ -1231,6 +1498,25 @@ term :	unary_expression
 		non_terminal_node->set_production_rule("term :	term MULOP unary_expression");
 
 		// todo: handle type_specifier
+		if(($2->get_lexeme() == "%") && !(term_node->get_type_specifier() == SYMBOLTYPE::INT && unary_expression_node->get_type_specifier() == SYMBOLTYPE::INT))
+		{
+			error_nonint_mod_op(@2.first_line);
+			
+		}
+
+		else if(term_node->get_type_specifier() == SYMBOLTYPE::VOID || unary_expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_default(@1.first_line, "void type is not allowed in arithmetic expression");
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::VOID);
+		}
+		else if(term_node->get_type_specifier() == SYMBOLTYPE::FLOAT || unary_expression_node->get_type_specifier() == SYMBOLTYPE::FLOAT)
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::FLOAT);
+		}
+		else
+		{
+			non_terminal_node->set_type_specifier(SYMBOLTYPE::INT);
+		}
 
 		non_terminal_node->add_child(term_node);
 		non_terminal_node->add_child(mulop_node);
@@ -1257,6 +1543,12 @@ unary_expression : ADDOP unary_expression
 		non_terminal_node->add_child(unary_expression_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		//show void in expression error
+		if (unary_expression_node->get_type_specifier() == SYMBOLTYPE::VOID)
+		{
+			error_void_in_expression(@2.first_line);
+		}
 	}
 	| NOT unary_expression 
 	{
@@ -1276,6 +1568,10 @@ unary_expression : ADDOP unary_expression
 
 		$$ = (Node*)non_terminal_node;
 		
+		if(unary_expression_node->get_type_specifier()!= SYMBOLTYPE::INT)
+		{
+			error_default(@2.first_line, "not expression must be int");
+		}
 	}
 	| factor 
 	{
@@ -1332,6 +1628,42 @@ factor	: variable
 		non_terminal_node->add_child(rparen_node);
 
 		$$ = (Node*)non_terminal_node;
+
+		SymbolInfo* symbol_info = symbol_table.lookup($1->get_lexeme());
+		if(symbol_info == NULL_SYMBOL_INFO)
+		{
+			error_undeclared_function(@1.first_line, $1->get_lexeme());
+		}
+		else if(symbol_info->get_type() != SYMBOLTYPE::FUNC_ID)
+		{
+			error_conflicting_type(@1.first_line, $1->get_lexeme());
+		}
+		else
+		{
+			FuncInfo* func_info = (FuncInfo*)symbol_info;
+			int num_of_params = func_info->get_param_type_specifiers().size();
+			int num_of_args = argument_list_node->get_parameters().size();
+			
+			if(num_of_params > num_of_args)
+			{
+				error_too_few_arguments(@1.first_line, $1->get_lexeme());
+			}
+			else if(num_of_params < num_of_args)
+			{
+				error_too_many_arguments(@1.first_line, $1->get_lexeme());
+			}
+			else 
+			{
+				for(int i = 0; i < num_of_params; i++)
+				{
+					if(func_info->get_param_type_specifiers()[i] != argument_list_node->get_parameters()[i])
+					{
+						error_argument_type_mismatch(@1.first_line,i+1, $1->get_lexeme());
+					}
+				}
+			}
+		}
+
 	}
 	| LPAREN expression RPAREN
 	{

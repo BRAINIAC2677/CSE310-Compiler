@@ -114,7 +114,7 @@ NEWLINE \n
 	yylval->TOK_VOID = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::VOID);
 	return TOK_VOID;
 }
-"print" {
+"println" {
 	log_out(yylloc->first_line, "PRINTF", yytext);
 	yylval->TOK_PRINTLN = (new SymbolInfo())->set_lexeme(yytext)->set_type(SYMBOLTYPE::PRINTLN);
 	return TOK_PRINTLN;

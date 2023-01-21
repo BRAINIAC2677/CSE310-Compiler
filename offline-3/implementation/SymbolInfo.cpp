@@ -90,7 +90,7 @@ bool FuncInfo::is_param_type_same(vector<SYMBOLTYPE> arg_param_type_specifier)
     // todo: handle implicit type-casting
     if (this->param_type_specifiers[i] != arg_param_type_specifier[i])
     {
-      return true;
+      return false;
     }
   }
   return true;
