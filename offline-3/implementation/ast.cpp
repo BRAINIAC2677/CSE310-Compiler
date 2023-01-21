@@ -242,23 +242,23 @@ DeclarationListNode *DeclarationListNode::add_declared_variable(VarInfo *declare
   return this;
 }
 
-ExpressionNode::ExpressionNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : NonterminalNode(symbol_type, start_lineno, end_lineno)
+TypedNonterminalNode::TypedNonterminalNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno) : NonterminalNode(symbol_type, start_lineno, end_lineno)
 {
   this->type_specifier = SYMBOLTYPE::NULL_SYMBOL;
 }
 
-SYMBOLTYPE ExpressionNode::get_type_specifier()
+SYMBOLTYPE TypedNonterminalNode::get_type_specifier()
 {
   return this->type_specifier;
 }
 
-ExpressionNode *ExpressionNode::set_type_specifier(SYMBOLTYPE type_specifier)
+TypedNonterminalNode *TypedNonterminalNode::set_type_specifier(SYMBOLTYPE type_specifier)
 {
   this->type_specifier = type_specifier;
   return this;
 }
 
-bool ExpressionNode::is_type_compatible(ExpressionNode *expression_node)
+bool TypedNonterminalNode::is_type_compatible(TypedNonterminalNode *expression_node)
 {
   if (this->type_specifier == expression_node->get_type_specifier())
   {

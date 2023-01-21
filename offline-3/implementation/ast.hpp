@@ -81,15 +81,15 @@ public:
   DeclarationListNode *add_declared_variable(VarInfo *declared_variable);
 };
 
-class ExpressionNode : public NonterminalNode
+class TypedNonterminalNode : public NonterminalNode
 {
   SYMBOLTYPE type_specifier;
 
 public:
-  ExpressionNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
+  TypedNonterminalNode(SYMBOLTYPE symbol_type, int start_lineno, int end_lineno);
 
   SYMBOLTYPE get_type_specifier();
-  ExpressionNode *set_type_specifier(SYMBOLTYPE type_specifier);
+  TypedNonterminalNode *set_type_specifier(SYMBOLTYPE type_specifier);
 
-  bool is_type_compatible(ExpressionNode *expression_node);
+  bool is_type_compatible(TypedNonterminalNode *expression_node);
 };

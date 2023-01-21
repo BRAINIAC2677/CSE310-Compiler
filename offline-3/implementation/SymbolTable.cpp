@@ -32,7 +32,7 @@ bool SymbolTable::exit_scope() noexcept
     return false;
 }
 
-bool SymbolTable::insert(SymbolInfo symbol_info) noexcept
+bool SymbolTable::insert(SymbolInfo *symbol_info) noexcept
 {
     return current_scope->insert(symbol_info);
 }

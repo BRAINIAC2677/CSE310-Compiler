@@ -64,6 +64,10 @@ typedef enum
   NULL_SYMBOL
 } SYMBOLTYPE;
 
+extern map<SYMBOLTYPE, string> aa_nonterminal_symbols;
+
+extern map<SYMBOLTYPE, string> aa_terminal_symbols;
+
 class SymbolInfo
 {
 private:
@@ -91,6 +95,8 @@ class FuncInfo : public SymbolInfo
 
 public:
   FuncInfo() noexcept;
+
+  SYMBOLTYPE get_return_type_specifier();
 
   bool is_return_type_same(SYMBOLTYPE arg_return_type_specifier);
   bool is_param_type_same(vector<SYMBOLTYPE> arg_param_type_specifier);

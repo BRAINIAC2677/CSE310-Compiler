@@ -44,6 +44,11 @@ FuncInfo::FuncInfo() noexcept : SymbolInfo(), return_type_specifier(NULL_SYMBOL)
   this->param_type_specifier = vector<SYMBOLTYPE>();
 }
 
+SYMBOLTYPE FuncInfo::get_return_type_specifier()
+{
+  return this->return_type_specifier;
+}
+
 bool FuncInfo::is_return_type_same(SYMBOLTYPE arg_return_type_specifier)
 {
   return (this->return_type_specifier == arg_return_type_specifier);

@@ -16,7 +16,7 @@ public:
 
     void enter_scope() noexcept;
     bool exit_scope() noexcept;
-    bool insert(SymbolInfo symbol_info) noexcept;
+    bool insert(SymbolInfo *symbol_info) noexcept;
     bool remove(string symbol_lexeme) noexcept;
     SymbolInfo *lookup(string symbol_lexeme) const;
     tuple<int, int, int> find_position(string symbol_lexeme) const noexcept;

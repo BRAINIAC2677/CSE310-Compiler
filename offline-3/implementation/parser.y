@@ -7,6 +7,7 @@
   #endif
 
   #include "SymbolInfo.hpp"
+  #include "SymbolTable.hpp"
   #include "ast.hpp"
 
   typedef struct CustomScannerData{
@@ -43,6 +44,7 @@
 
 #include <bits/stdc++.h>
 using namespace std;
+
 }
 
 
@@ -51,6 +53,21 @@ using namespace std;
 	ofstream parsetree_file;
     ofstream log_file;
     ofstream error_file;
+
+	SymbolTable symbol_table = SymbolTable(10);
+
+	// error function
+
+	void error_default(int lineno, string error_msg)
+	{
+		error_file << "Line# " << lineno << ": " << error_msg << "\n";
+	}
+
+	void error_undeclared_variable(int lineno, string variable_name)
+	{
+		error_file << "Line# " << lineno << ": " << "Undeclared variable '" << variable_name << "'\n";
+	}
+
 }
 
 // Include the header in the implementation rather than duplicating it.
@@ -192,7 +209,7 @@ var_declaration : type_specifier declaration_list SEMICOLON
 
 		DeclarationListNode* declaration_list_node = (DeclarationListNode*)$2;
 
-		NonterminalNode* type_specifier_node = (NonterminalNode*)$1;
+		TypedNonterminalNode* type_specifier_node = (TypedNonterminalNode*)$1;
 
 		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::VAR_DECLARATION, @1.first_line, @3.last_line);
 		non_terminal_node->set_production_rule("var_declaration : type_specifier declaration_list SEMICOLON");
@@ -206,9 +223,11 @@ var_declaration : type_specifier declaration_list SEMICOLON
 		// setting type_specifier of all the variables in the declaration_list
 		for(auto var: declaration_list_node->get_declared_variables())
 		{
-			var->set_type_specifier(type_specifier_node->get_children()[0]->get_symbol_type());
+			var->set_type_specifier(type_specifier_node->get_type_specifier());
+			symbol_table.insert((SymbolInfo*)var);
 		}
 
+		cout<<symbol_table<<"\n";
 	}
  	;
  		 
@@ -216,8 +235,9 @@ type_specifier	: INT
 	{
 		log_file << "type_specifier	: INT\n";
 
-		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
 		non_terminal_node->set_production_rule("type_specifier : INT");
+		non_terminal_node->set_type_specifier(SYMBOLTYPE::INT);
 
 		TerminalNode* terminal_node = new TerminalNode(SYMBOLTYPE::INT, @1.first_line);
 		terminal_node->set_symbol_info($1);
@@ -230,8 +250,9 @@ type_specifier	: INT
 	{
 		log_file << "type_specifier	: FLOAT\n";
 
-		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
 		non_terminal_node->set_production_rule("type_specifier : FLOAT");
+		non_terminal_node->set_type_specifier(SYMBOLTYPE::FLOAT);
 
 		TerminalNode* terminal_node = new TerminalNode(SYMBOLTYPE::FLOAT, @1.first_line);
 		terminal_node->set_symbol_info($1);
@@ -243,8 +264,10 @@ type_specifier	: INT
 	{
 		log_file << "type_specifier	: VOID\n";
 
-		NonterminalNode* non_terminal_node = new NonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::TYPE_SPECIFIER, @1.first_line, @1.last_line);
 		non_terminal_node->set_production_rule("type_specifier : VOID");
+		non_terminal_node;
+		non_terminal_node->set_type_specifier(SYMBOLTYPE::VOID);
 
 		TerminalNode* terminal_node = new TerminalNode(SYMBOLTYPE::VOID, @1.first_line);
 		terminal_node->set_symbol_info($1);
@@ -430,10 +453,58 @@ expression_statement : SEMICOLON
 variable : ID 		
 	{
 		log_file << "variable : ID\n";
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @1.first_line);
+		id_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::VARIABLE, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("variable : ID");
+		SymbolInfo* symbol_info = symbol_table.lookup($1->get_lexeme());
+		if(symbol_info == NULL_SYMBOL_INFO)
+		{
+			//error
+			error_undeclared_variable( @1.first_line, $1->get_lexeme());
+		}
+		else if(symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+		{
+			//error
+		}
+		else
+		{
+			VarInfo* var_info = (VarInfo*)symbol_info;
+			non_terminal_node->set_type_specifier(var_info->get_type_specifier());
+		}
+
+		non_terminal_node->add_child(id_node);
+
+		$$ = (Node*)non_terminal_node;
+
 	}
 	| ID LTHIRD expression RTHIRD 
 	{
 		log_file << "variable : ID LTHIRD expression RTHIRD\n";
+
+		TerminalNode* rthird_node = new TerminalNode(SYMBOLTYPE::RTHIRD, @4.first_line);
+		rthird_node->set_symbol_info($4);
+
+		//todo: handle expression node
+
+		TerminalNode* lthird_node = new TerminalNode(SYMBOLTYPE::LTHIRD, @2.first_line);
+		lthird_node->set_symbol_info($2);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @1.first_line);
+		id_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::VARIABLE, @1.first_line, @4.last_line);
+		non_terminal_node->set_production_rule("variable : ID LTHIRD expression RTHIRD");
+		//todo: handle type_specifier
+
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lthird_node);
+		//todo: add expression node
+		non_terminal_node->add_child(rthird_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	 
@@ -490,44 +561,182 @@ term :	unary_expression
 unary_expression : ADDOP unary_expression  
 	{
 		log_file << "unary_expression : ADDOP unary_expression\n";
+
+		TypedNonterminalNode* unary_expression_node = (TypedNonterminalNode*)$2;
+
+		TerminalNode* addop_node = new TerminalNode(SYMBOLTYPE::ADDOP, @1.first_line);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::UNARY_EXPRESSION, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("unary_expression : ADDOP unary_expression");
+		non_terminal_node->set_type_specifier(unary_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(addop_node);
+		non_terminal_node->add_child(unary_expression_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| NOT unary_expression 
 	{
 		log_file << "unary_expression : NOT unary_expression\n";
+
+		TypedNonterminalNode* unary_expression_node = (TypedNonterminalNode*)$2;
+
+		TerminalNode* not_node = new TerminalNode(SYMBOLTYPE::NOT, @1.first_line);
+		not_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::UNARY_EXPRESSION, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("unary_expression : NOT unary_expression");
+		non_terminal_node->set_type_specifier(unary_expression_node->get_type_specifier());
+
+		non_terminal_node->add_child(not_node);
+		non_terminal_node->add_child(unary_expression_node);
+
+		$$ = (Node*)non_terminal_node;
+		
 	}
 	| factor 
 	{
 		log_file << "unary_expression : factor\n";
+
+		TypedNonterminalNode* factor_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::UNARY_EXPRESSION, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("unary_expression : factor");
+		non_terminal_node->set_type_specifier(factor_node->get_type_specifier());
+
+		non_terminal_node->add_child(factor_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	
 factor	: variable 
 	{
 		log_file << "factor	: variable\n";
+
+		TypedNonterminalNode* variable_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("factor : variable");
+		non_terminal_node->set_type_specifier(variable_node->get_type_specifier());
+
+		non_terminal_node->add_child(variable_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| ID LPAREN argument_list RPAREN
 	{
 		log_file << "factor	: ID LPAREN argument_list RPAREN\n";
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @4.first_line);
+		rparen_node->set_symbol_info($4);
+
+		//todo: handle argument_list node
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @2.first_line);
+		lparen_node->set_symbol_info($2);
+
+		TerminalNode* id_node = new TerminalNode(SYMBOLTYPE::ID, @1.first_line);
+		id_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @4.last_line);
+		non_terminal_node->set_production_rule("factor : ID LPAREN argument_list RPAREN");
+		//todo: handle type_specifier
+
+		non_terminal_node->add_child(id_node);
+		non_terminal_node->add_child(lparen_node);
+		//todo: add argument_list node
+		non_terminal_node->add_child(rparen_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| LPAREN expression RPAREN
 	{
 		log_file << "factor	: LPAREN expression RPAREN\n";
+
+		TerminalNode* rparen_node = new TerminalNode(SYMBOLTYPE::RPAREN, @3.first_line);
+		rparen_node->set_symbol_info($3);
+
+		//todo: handle expression node
+
+		TerminalNode* lparen_node = new TerminalNode(SYMBOLTYPE::LPAREN, @1.first_line);
+		lparen_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @3.last_line);
+		non_terminal_node->set_production_rule("factor : LPAREN expression RPAREN");
+		//todo: handle type_specifier
+
+		non_terminal_node->add_child(lparen_node);
+		//todo: add expression node
+		non_terminal_node->add_child(rparen_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| CONST_INT 
 	{
 		log_file << "factor	: CONST_INT\n";
+
+		TerminalNode* const_int_node = new TerminalNode(SYMBOLTYPE::CONST_INT, @1.first_line);
+		const_int_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("factor : CONST_INT");
+		non_terminal_node->set_type_specifier(SYMBOLTYPE::INT);
+
+		non_terminal_node->add_child(const_int_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| CONST_FLOAT
 	{
 		log_file << "factor	: CONST_FLOAT\n";
+
+		TerminalNode* const_float_node = new TerminalNode(SYMBOLTYPE::CONST_FLOAT, @1.first_line);
+		const_float_node->set_symbol_info($1);
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @1.last_line);
+		non_terminal_node->set_production_rule("factor : CONST_FLOAT");
+		non_terminal_node->set_type_specifier(SYMBOLTYPE::FLOAT);
+
+		non_terminal_node->add_child(const_float_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| variable INCOP 
 	{
 		log_file << "factor	: variable INCOP\n";
+
+		TerminalNode* incop_node = new TerminalNode(SYMBOLTYPE::INCOP, @2.first_line);
+		incop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* variable_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("factor : variable INCOP");
+		non_terminal_node->set_type_specifier(variable_node->get_type_specifier());
+
+		non_terminal_node->add_child(variable_node);
+		non_terminal_node->add_child(incop_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	| variable DECOP
 	{
 		log_file << "factor	: variable DECOP\n";
+
+		TerminalNode* decop_node = new TerminalNode(SYMBOLTYPE::DECOP, @2.first_line);
+		decop_node->set_symbol_info($2);
+
+		TypedNonterminalNode* variable_node = (TypedNonterminalNode*)$1;
+
+		TypedNonterminalNode* non_terminal_node = new TypedNonterminalNode(SYMBOLTYPE::FACTOR, @1.first_line, @2.last_line);
+		non_terminal_node->set_production_rule("factor : variable DECOP");
+		non_terminal_node->set_type_specifier(variable_node->get_type_specifier());
+
+		non_terminal_node->add_child(variable_node);
+		non_terminal_node->add_child(decop_node);
+
+		$$ = (Node*)non_terminal_node;
 	}
 	;
 	
@@ -593,8 +802,8 @@ int main(int argc, char const *argv[])
 	log_file.open(log_file_name);
 	error_file.open(error_file_name);
   
-  custom_scanner_data scandata(&log_file);
-  yyscan_t scaninfo;
+  	custom_scanner_data scandata(&log_file);
+  	yyscan_t scaninfo;
 	yylex_init_extra(&scandata, &scaninfo);
 	yyset_in(input_file,scaninfo);
 	yyparse(scaninfo);
@@ -602,9 +811,9 @@ int main(int argc, char const *argv[])
 
 	fclose(input_file);
 
-  parsetree_file.close();
-  log_file.close();
-  error_file.close();
+  	parsetree_file.close();
+  	log_file.close();
+  	error_file.close();
 
-  return 0;
+  	return 0;
 }

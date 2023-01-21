@@ -42,11 +42,13 @@ void ScopeTable::set_parent_scope(ScopeTable *parent_scope) noexcept
     this->parent_scope = parent_scope;
 }
 
-bool ScopeTable::insert(SymbolInfo symbol_info) noexcept
+bool ScopeTable::insert(SymbolInfo *symbol_info) noexcept
 {
-    if (lookup(symbol_info.get_lexeme()) == NULL_SYMBOL_INFO)
+    if (lookup(symbol_info->get_lexeme()) == NULL_SYMBOL_INFO)
     {
-        SymbolInfo *new_symbol_info = (new SymbolInfo())->set_lexeme(symbol_info.get_lexeme())->set_type(symbol_info.get_type());
+        // SymbolInfo *new_symbol_info = (new SymbolInfo())->set_lexeme(symbol_info.get_lexeme())->set_type(symbol_info.get_type());
+
+        SymbolInfo *new_symbol_info = symbol_info;
 
         auto hashed_index = SDBMHash(new_symbol_info->get_lexeme());
         auto last_symbol_info = get_last_symbol_info(hashed_index);
@@ -141,7 +143,20 @@ ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept
         auto current_symbol_info = scope_table.buckets[i];
         while (current_symbol_info != nullptr)
         {
-            out << "<" << current_symbol_info->get_lexeme() <<"> ";
+            if (current_symbol_info->get_type() == SYMBOLTYPE::VAR_ID)
+            {
+                VarInfo *var_info = (VarInfo *)current_symbol_info;
+                out << "<" << current_symbol_info->get_lexeme() << ", " << aa_terminal_symbols[var_info->get_type_specifier()] << "> ";
+            }
+            else if (current_symbol_info->get_type() == SYMBOLTYPE::FUNC_ID)
+            {
+                FuncInfo *func_info = (FuncInfo *)current_symbol_info;
+                out << "<" << current_symbol_info->get_lexeme() << ", FUNCTION " << aa_terminal_symbols[func_info->get_return_type_specifier()] << "> ";
+            }
+            else
+            {
+                out << "<" << current_symbol_info->get_lexeme() << "> ";
+            }
             current_symbol_info = current_symbol_info->get_next_symbol_info();
         }
         out << endl;

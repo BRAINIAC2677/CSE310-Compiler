@@ -26,14 +26,22 @@ $(SCANNER).o: $(SCANNER).c $(PARSER).h
 	$(CXX) -w -c -o $@ $<
 
 ast.o: ast.cpp 
-	echo "Compiling $(AST).cpp"
+	echo "Compiling ast.cpp"
 	$(CXX) -w -c -o $@ $<
 
 SymbolInfo.o: SymbolInfo.cpp
-	echo "Compiling $(SymbolInfo).cpp"
+	echo "Compiling SymbolInfo.cpp"
 	$(CXX) -w -c -o $@ $<
 
-$(BASE): $(PARSER).o $(SCANNER).o ast.o SymbolInfo.o
+ScopeTable.o: ScopeTable.cpp
+	echo "Compiling ScopeTable.cpp"
+	$(CXX) -w -c -o $@ $<
+
+SymbolTable.o: SymbolTable.cpp
+	echo "Compiling SymbolTable.cpp"
+	$(CXX) -w -c -o $@ $<
+
+$(BASE): $(PARSER).o $(SCANNER).o SymbolTable.o  SymbolInfo.o ScopeTable.o ast.o
 	echo "Compiling $(BASE)"
 	$(CXX) -o $@ $^ 
 run: $(BASE)
