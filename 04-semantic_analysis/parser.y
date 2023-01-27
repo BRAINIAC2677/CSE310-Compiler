@@ -403,6 +403,12 @@ parameter_list  :
 
 			func_params.push_back({$1->get_data_type(), ""});
 		}
+		|
+		error
+		{
+			yyclearin;
+			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("parameter_list  : error");
+		}
  		;
 
  		
@@ -410,6 +416,8 @@ compound_statement :
 	LCURL 
 	{
 		symbol_table.enter_scope();
+		// cout<<"entering scope\n";
+		// cout<<symbol_table<<endl;
 
 		// inserting parameters of function definition
 		if(func_params.size() > 0)
@@ -439,6 +447,8 @@ compound_statement :
 		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("compound_statement : LCURL statements RCURL");
 		$$->add_child(lcurl_node)->add_child($3)->add_child(rcurl_node);
 
+		// cout<<"exiting scope\n";
+		// cout<<symbol_table<<endl;
 		symbol_table.exit_scope();
 	}
  	| 
@@ -554,6 +564,12 @@ declaration_list :
 		$$->add_child(id_node)->add_child(lthird_node)->add_child(const_int_node)->add_child(rthird_node);
 
 		var_decl_list.push_back({{$1, stoi($3->get_lexeme())}, id_node});
+	}
+	|
+	error
+	{
+		yyclearin;
+		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("declaration_list : error");
 	}
  	;
  		  
@@ -752,6 +768,12 @@ expression :
 		{
 			warning_data_loss(@1.first_line, DataType::FLOAT, DataType::INT);
 		}
+	}
+	|
+	error
+	{
+		yyclearin;
+		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("expression : error");
 	}
 	;
 			
@@ -1024,7 +1046,7 @@ arguments :
 
 void yyerror (const YYLTYPE* loc, yyscan_t scanner, const char *msg, ...)
 {
-	cout<<"Line "<<loc->first_line<<":"<<loc->first_column<<" | Error: "<<msg<<endl;
+	error_file<<"Line "<<loc->first_line<<":"<<loc->first_column<<" | Error: "<<msg<<endl;
 }
 
 
