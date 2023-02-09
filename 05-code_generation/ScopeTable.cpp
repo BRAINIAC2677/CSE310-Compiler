@@ -4,7 +4,7 @@
 #include <iostream>
 using namespace std;
 
-ScopeTable::ScopeTable(int scope_id, int number_of_buckets, ScopeTable *parent_scope) noexcept : scope_id(scope_id), number_of_buckets(number_of_buckets), parent_scope(parent_scope)
+ScopeTable::ScopeTable(int scope_id, int number_of_buckets, ScopeTable *parent_scope) noexcept : scope_id(scope_id), number_of_buckets(number_of_buckets), parent_scope(parent_scope), current_offset(0), base_offset(0)
 {
     this->buckets = new SymbolInfo *[number_of_buckets];
     for (int i = 0; i < number_of_buckets; i++)
@@ -38,9 +38,32 @@ int ScopeTable::get_scope_id() const noexcept
     return scope_id;
 }
 
-void ScopeTable::set_parent_scope(ScopeTable *parent_scope) noexcept
+int ScopeTable::get_current_offset() const noexcept
+{
+    return current_offset;
+}
+
+int ScopeTable::get_base_offset() const noexcept
+{
+    return base_offset;
+}
+
+ScopeTable *ScopeTable::set_parent_scope(ScopeTable *parent_scope) noexcept
 {
     this->parent_scope = parent_scope;
+    return this;
+}
+
+ScopeTable *ScopeTable::set_current_offset(int _current_offset) noexcept
+{
+    this->current_offset = _current_offset;
+    return this;
+}
+
+ScopeTable *ScopeTable::set_base_offset(int _base_offset) noexcept
+{
+    this->base_offset = _base_offset;
+    return this;
 }
 
 bool ScopeTable::insert(SymbolInfo *symbol_info) noexcept
@@ -52,7 +75,7 @@ bool ScopeTable::insert(SymbolInfo *symbol_info) noexcept
         if (symbol_info->get_type() == TokenType::SI_VAR_ID)
         {
             VarInfo *var_info = (VarInfo *)symbol_info;
-            new_symbol_info = (new VarInfo())->set_lexeme(var_info->get_lexeme())->set_type(var_info->get_type())->set_data_type(var_info->get_data_type())->set_array_size(var_info->get_array_size());
+            new_symbol_info = (new VarInfo())->set_lexeme(var_info->get_lexeme())->set_type(var_info->get_type())->set_data_type(var_info->get_data_type())->set_array_size(var_info->get_array_size())->set_offset(var_info->get_offset())->set_global(var_info->is_global());
         }
         else if ((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID) || (symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID))
         {
@@ -173,6 +196,12 @@ ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept
     }
 
     return out;
+}
+
+ScopeTable *ScopeTable::inc_current_offset(int _increment) noexcept
+{
+    this->current_offset += _increment;
+    return this;
 }
 
 unsigned long long int ScopeTable::SDBMHash(string str) const noexcept

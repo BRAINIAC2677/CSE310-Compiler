@@ -1,23 +1,19 @@
-int x, y, z;
-float a;
 
-int var(int -)
+int f(int a, int b)
 {
+	int c;
+	c = a + b;
+	return c;
 }
 
 int main()
 {
-	int a[2], c, i, j;
-	float d;
-	int x - y, z;
-	a = 2 + = 6
-#
-		x = 2;
-
-	a[0];
-	a[1] = 5;
-	i = a[0] + a[1];
-	j = 2 * 3 + (5 % 3 < 4 && 8) || 2;
-	d = var(1, 2 * 3) + 3.5 * 2;
+	int a;
+	a = 1 + 3;
+	println(a);
+	a = f(5, 6);
+	println(a);
+	a = f(1, 2) && f(3, 4);
+	println(a);
 	return 0;
 }

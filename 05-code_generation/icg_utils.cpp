@@ -102,6 +102,11 @@ PRINT_INT PROC\n\
         JMP PRINT_INT_LOOP_1\n\           
     PRINT_INT_END_LOOP_1:\n\
     \n\
+    CMP CX, 0\n\
+    JNE PRINTLN_INT_LOOP_2\n\
+    MOV DX, 30H\n\
+    MOV AH, 2\n\
+    INT 21H\n\
     \n\
     PRINT_INT_LOOP_2:\n\
         ; UNSTACKING AND PRINTING DIGITS\n\
@@ -172,6 +177,11 @@ PRINTLN_INT PROC\n\
         JMP PRINTLN_INT_LOOP_1\n\           
     PRINTLN_INT_END_LOOP_1:\n\
     \n\
+    CMP CX, 0\n\
+    JNE PRINTLN_INT_LOOP_2\n\
+    MOV DX, 30H\n\
+    MOV AH, 2\n\
+    INT 21H\n\
     \n\
     PRINTLN_INT_LOOP_2:\n\
         ; UNSTACKING AND PRINTING DIGITS\n\
@@ -244,4 +254,398 @@ string gen_func_ending_code(string _func_name, int _arg_size)
     }
     code += _func_name + " ENDP\n\n";
     return code;
+}
+
+string gen_code(string _code)
+{
+    string code = "\t" + _code + "\n";
+    return code;
+}
+
+string gen_code(string _code, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\t" + _code + _comment + "\n";
+    return code;
+}
+
+string gen_push(string _reg)
+{
+    string code = "\
+    PUSH " + _reg +
+                  "\n";
+    return code;
+}
+
+string gen_push(string _reg, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    PUSH " + _reg +
+                  _comment + "\n";
+    return code;
+}
+
+string gen_push(int _val)
+{
+    string code = "\
+    PUSH " + to_string(_val) +
+                  "\n";
+    return code;
+}
+
+string gen_push(int _val, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    PUSH " + to_string(_val) +
+                  _comment + "\n";
+    return code;
+}
+
+string gen_pop(string _reg)
+{
+    string code = "\
+    POP " + _reg + "\n";
+    return code;
+}
+
+string gen_pop(string _reg, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    POP " + _reg + _comment +
+                  "\n";
+    return code;
+}
+
+string gen_mov(string _reg1, string _reg2)
+{
+    string code = "\
+    MOV " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_mov(string _reg1, string _reg2, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    MOV " + _reg1 +
+                  ", " + _reg2 + _comment + "\n";
+    return code;
+}
+
+string gen_mov(string _reg1, int _val)
+{
+    string code = "\
+    MOV " + _reg1 +
+                  ", " + to_string(_val) + "\n";
+    return code;
+}
+
+string gen_mov(string _reg1, int _val, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    MOV " + _reg1 +
+                  ", " + to_string(_val) + _comment + "\n";
+    return code;
+}
+
+string gen_call(string _func_name)
+{
+    string code = "\
+    CALL " + _func_name +
+                  "\n";
+    return code;
+}
+
+string gen_call(string _func_name, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    CALL " + _func_name +
+                  _comment + "\n";
+    return code;
+}
+
+string gen_sub(string _reg1, string _reg2)
+{
+    string code = "\
+    SUB " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_sub(string _reg1, string _reg2, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    SUB " + _reg1 +
+                  ", " + _reg2 + _comment + "\n";
+    return code;
+}
+
+string gen_sub(string _reg, int _val)
+{
+    string code = "\
+    SUB " + _reg + ", " +
+                  to_string(_val) + "\n";
+    return code;
+}
+
+string gen_sub(string _reg, int _val, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    SUB " + _reg + ", " +
+                  to_string(_val) + _comment + "\n";
+    return code;
+}
+
+string gen_add(string _reg1, string _reg2)
+{
+    string code = "\
+    ADD " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_add(string _reg1, string _reg2, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    ADD " + _reg1 +
+                  ", " + _reg2 + _comment + "\n";
+    return code;
+}
+
+string gen_add(string _reg, int _val)
+{
+    string code = "\
+    ADD " + _reg + ", " +
+                  to_string(_val) + "\n";
+    return code;
+}
+
+string gen_add(string _reg, int _val, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    ADD " + _reg + ", " +
+                  to_string(_val) + _comment + "\n";
+    return code;
+}
+
+string gen_neg(string _reg)
+{
+    string code = "\
+    NEG " + _reg + "\n";
+    return code;
+}
+
+string gen_neg(string _reg, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    NEG " + _reg + _comment +
+                  "\n";
+    return code;
+}
+
+string gen_cmp(string _reg1, string _reg2)
+{
+    string code = "\
+    CMP " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_cmp(string _reg1, string _reg2, string _comment)
+{
+    string code = "\
+    CMP " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_cmp(string _reg1, int _val)
+{
+    string code = "\
+    CMP " + _reg1 +
+                  ", " + to_string(_val) + "\n";
+    return code;
+}
+
+string gen_cmp(string _reg1, int _val, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    CMP " + _reg1 +
+                  ", " + to_string(_val) + _comment + "\n";
+    return code;
+}
+
+string gen_label(string _label)
+{
+    string code = "\
+    " + _label + ":\n";
+    return code;
+}
+
+string gen_label(string _label, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    " + _label + ":" +
+                  _comment + "\n";
+    return code;
+}
+
+string gen_imul(string _reg)
+{
+    string code = "\
+    IMUL " + _reg +
+                  "\n";
+    return code;
+}
+
+string gen_imul(string _reg, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    IMUL " + _reg +
+                  _comment + "\n";
+    return code;
+}
+
+string gen_idiv(string _reg)
+{
+    string code = "\
+    IDIV " + _reg +
+                  "\n";
+    return code;
+}
+
+string gen_idiv(string _reg, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    IDIV " + _reg +
+                  _comment + "\n";
+    return code;
+}
+
+string gen_xor(string _reg1, string _reg2)
+{
+    string code = "\
+    XOR " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_xor(string _reg1, string _reg2, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    XOR " + _reg1 +
+                  ", " + _reg2 + _comment + "\n";
+    return code;
+}
+
+string gen_and(string _reg1, string _reg2)
+{
+    string code = "\
+    AND " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_and(string _reg1, string _reg2, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    AND " + _reg1 +
+                  ", " + _reg2 + _comment + "\n";
+    return code;
+}
+
+string gen_or(string _reg1, string _reg2)
+{
+    string code = "\
+    OR " + _reg1 +
+                  ", " + _reg2 + "\n";
+    return code;
+}
+
+string gen_or(string _reg1, string _reg2, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code = "\
+    OR " + _reg1 +
+                  ", " + _reg2 + _comment + "\n";
+    return code;
+}
+
+string get_lineno_comment(int _lineno)
+{
+    return "line no: " + to_string(_lineno);
 }

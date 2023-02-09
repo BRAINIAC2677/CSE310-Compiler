@@ -53,6 +53,16 @@ int VarInfo::get_array_size() const noexcept
     return this->array_size;
 }
 
+bool VarInfo::is_global() const noexcept
+{
+    return this->global;
+}
+
+int VarInfo::get_offset() const noexcept
+{
+    return this->offset;
+}
+
 VarInfo *VarInfo::set_lexeme(string lexeme) noexcept
 {
     this->lexeme = lexeme;
@@ -75,6 +85,31 @@ VarInfo *VarInfo::set_array_size(int _array_size) noexcept
 {
     this->array_size = _array_size;
     return this;
+}
+
+VarInfo *VarInfo::set_global(bool _global) noexcept
+{
+    this->global = _global;
+    return this;
+}
+
+VarInfo *VarInfo::set_offset(int _offset) noexcept
+{
+    this->offset = _offset;
+    return this;
+}
+
+string VarInfo::get_address() const noexcept
+{
+    if (this->global)
+    {
+        return this->lexeme;
+    }
+    else
+    {
+        string op = (this->offset < 0) ? "-" : "+";
+        return "[BP" + op + to_string(abs(this->offset)) + "]";
+    }
 }
 
 FuncInfo::FuncInfo() noexcept : SymbolInfo(), return_type(DataType::NULL_TYPE), param_types(vector<DataType>()) {}
