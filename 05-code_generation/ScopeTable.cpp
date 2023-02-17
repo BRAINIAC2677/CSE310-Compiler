@@ -75,7 +75,7 @@ bool ScopeTable::insert(SymbolInfo *symbol_info) noexcept
         if (symbol_info->get_type() == TokenType::SI_VAR_ID)
         {
             VarInfo *var_info = (VarInfo *)symbol_info;
-            new_symbol_info = (new VarInfo())->set_lexeme(var_info->get_lexeme())->set_type(var_info->get_type())->set_data_type(var_info->get_data_type())->set_array_size(var_info->get_array_size())->set_offset(var_info->get_offset())->set_global(var_info->is_global());
+            new_symbol_info = (new VarInfo())->set_lexeme(var_info->get_lexeme())->set_type(var_info->get_type())->set_data_type(var_info->get_data_type())->set_array_size(var_info->get_array_size())->set_start_offset(var_info->get_start_offset())->set_global(var_info->is_global());
         }
         else if ((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID) || (symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID))
         {

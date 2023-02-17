@@ -39,7 +39,7 @@ SymbolInfo *SymbolInfo::set_next_symbol_info(SymbolInfo *next_symbol_info) noexc
     return this;
 }
 
-VarInfo::VarInfo() noexcept : SymbolInfo(), data_type(DataType::NULL_TYPE), array_size(-1) {}
+VarInfo::VarInfo() noexcept : SymbolInfo(), data_type(DataType::NULL_TYPE), array_size(-1), global(false), start_offset(0) {}
 
 VarInfo::~VarInfo() noexcept {}
 
@@ -58,9 +58,9 @@ bool VarInfo::is_global() const noexcept
     return this->global;
 }
 
-int VarInfo::get_offset() const noexcept
+int VarInfo::get_start_offset() const noexcept
 {
-    return this->offset;
+    return this->start_offset;
 }
 
 VarInfo *VarInfo::set_lexeme(string lexeme) noexcept
@@ -93,9 +93,9 @@ VarInfo *VarInfo::set_global(bool _global) noexcept
     return this;
 }
 
-VarInfo *VarInfo::set_offset(int _offset) noexcept
+VarInfo *VarInfo::set_start_offset(int _start_offset) noexcept
 {
-    this->offset = _offset;
+    this->start_offset = _start_offset;
     return this;
 }
 
@@ -107,8 +107,8 @@ string VarInfo::get_address() const noexcept
     }
     else
     {
-        string op = (this->offset < 0) ? "-" : "+";
-        return "[BP" + op + to_string(abs(this->offset)) + "]";
+        string op = (this->start_offset < 0) ? "-" : "+";
+        return "[BP" + op + to_string(abs(this->start_offset)) + "]";
     }
 }
 

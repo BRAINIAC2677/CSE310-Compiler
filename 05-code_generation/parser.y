@@ -46,6 +46,7 @@
 {
 	//global variables
 	bool is_global_scope = true;
+	int array_index = -1; // -1 means not array index
 	int label = 0;
 	string input_file_name, parsetree_file_name, error_file_name, asmcode_file_name, code_segment_file_name;
 	ofstream parsetree_file, error_file, asmcode_file;
@@ -476,7 +477,7 @@ compound_statement :
 			symbol_table.get_current_scope()->set_base_offset(0);
 			for(int i = 0; i < func_params.size(); i++)
 			{
-				VarInfo* var_info = (new VarInfo())->set_lexeme(func_params[i].second)->set_type(SI_VAR_ID)->set_data_type(func_params[i].first)->set_offset(4 + 2*i)->set_global(false);
+				VarInfo* var_info = (new VarInfo())->set_lexeme(func_params[i].second)->set_type(SI_VAR_ID)->set_data_type(func_params[i].first)->set_start_offset(4 + 2*i)->set_global(false);
 
 				//semantic errors
 				SymbolInfo* symbol_info = symbol_table.get_current_scope()->lookup(var_info->get_lexeme());
@@ -543,8 +544,19 @@ var_declaration :
 			{
 				if(!is_global_scope)
 				{
-					symbol_table.get_current_scope()->inc_current_offset();
-					var_info->set_offset(-symbol_table.get_current_scope()->get_current_offset());
+					if(var_info->get_array_size() > 0)
+					{
+						symbol_table.get_current_scope()->inc_current_offset(var_info->get_array_size()*2);	
+					}
+					else 
+					{
+						symbol_table.get_current_scope()->inc_current_offset();
+					}
+					var_info->set_start_offset(-symbol_table.get_current_scope()->get_current_offset());
+				}
+				else 
+				{
+					asmcode_file<< gen_global_var(var_info->get_lexeme(), var_info->get_array_size(), get_lineno_comment(@3.first_line));
 				}
 				symbol_table.insert((SymbolInfo*)var_info);
 			}
@@ -553,8 +565,11 @@ var_declaration :
 				error_conflicting_type(@$.first_line, var_info->get_lexeme());
 			}
 		}
-		code_segment_file<<gen_mov("SP", "BP");
-		code_segment_file<<gen_sub("SP", symbol_table.get_current_scope()->get_current_offset());
+		if(!is_global_scope)
+		{
+			code_segment_file<<gen_mov("SP", "BP");
+			code_segment_file<<gen_sub("SP", symbol_table.get_current_scope()->get_current_offset());
+		}
 		var_decl_list.clear();
 	}
  	;
@@ -768,7 +783,10 @@ variable :
 		SymbolInfo* symbol_info = symbol_table.lookup($1->get_lexeme());
 		if(symbol_info->get_type() == TokenType::SI_VAR_ID)
 		{
-			code_segment_file << gen_push(var_info->get_address(), get_lineno_comment(@1.first_line));
+			if(!var_info->is_global())
+			{
+				code_segment_file<<gen_push(var_info->get_start_offset(), get_lineno_comment(@1.first_line));
+			}
 		}
 		else 
 		{
@@ -801,7 +819,15 @@ variable :
 		}
 		else if(symbol_info->get_type() == TokenType::SI_VAR_ID && ((VarInfo*)symbol_info)->get_array_size() > -1)
 		{
-			//code generation
+			code_segment_file << gen_pop("SI", get_lineno_comment(@1.first_line));
+			code_segment_file << gen_code("SHL SI, 1", get_lineno_comment(@1.first_line));
+			//assuming the offset is always negative
+			if(!var_info->is_global())
+			{
+				code_segment_file<<gen_sub("SI", abs(var_info->get_start_offset()), get_lineno_comment(@1.first_line));
+			}
+			code_segment_file << gen_push("SI", get_lineno_comment(@1.first_line));
+			
 		}
 	}
 	;
@@ -835,9 +861,25 @@ expression :
 		}
 		else 
 		{
-			code_segment_file <<gen_pop("BX", get_lineno_comment(@3.first_line)); 
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_mov($1->get_address(), "BX", get_lineno_comment(@1.first_line));
+
+			code_segment_file <<gen_pop("AX", get_lineno_comment(@3.first_line)); 
+			if($1->is_global())
+			{
+				if($1->get_array_size() < 0)
+				{
+					code_segment_file << gen_mov($1->get_lexeme(), "AX", get_lineno_comment(@3.first_line));
+				}
+				else 
+				{
+					code_segment_file << gen_pop("SI", get_lineno_comment(@3.first_line));
+					code_segment_file << gen_mov($1->get_lexeme() + "[SI]", "AX", get_lineno_comment(@3.first_line));
+				}
+			}
+			else 
+			{
+				code_segment_file << gen_pop("SI", get_lineno_comment(@1.first_line));
+				code_segment_file << gen_mov("[BP+SI]", "AX", get_lineno_comment(@1.first_line));
+			}
 		}
 	}
 	|
@@ -1113,7 +1155,24 @@ factor	:
 	variable
 	{
 		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("factor : variable");
-		
+
+		if($1->is_global())
+		{
+			if($1->get_array_size() < 0)
+			{
+				code_segment_file<<gen_push($1->get_lexeme(), get_lineno_comment(@1.first_line));
+			}
+			else 
+			{
+				code_segment_file<<gen_pop("SI", get_lineno_comment(@1.first_line));
+				code_segment_file<<gen_push($1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
+			}
+		}
+		else 
+		{
+			code_segment_file << gen_pop("SI", get_lineno_comment(@1.first_line));
+			code_segment_file << gen_push("[BP+SI]", get_lineno_comment(@1.first_line));
+		}	
 	}
 	| 
 	ID LPAREN
@@ -1212,15 +1271,21 @@ factor	:
 
 		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("factor : variable INCOP");
 		$$->add_child(incop_node);
+		
+		code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
+		code_segment_file << gen_add("AX", 1, get_lineno_comment(@1.first_line));
+		code_segment_file << gen_push("AX", get_lineno_comment(@1.first_line));
 	}
 	| 
 	variable DECOP
 	{
-
 		ParseTreeNode* decop_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("DECOP : --");
 
 		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("factor : variable DECOP");
 		$$->add_child(decop_node);
+		code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
+		code_segment_file << gen_sub("AX", 1, get_lineno_comment(@1.first_line));
+		code_segment_file << gen_push("AX", get_lineno_comment(@1.first_line));
 	}
 	;
 	

@@ -68,7 +68,7 @@ class VarInfo : public SymbolInfo
     int array_size; //-1 means not an array
 
     bool global;
-    int offset;
+    int start_offset;
 
 public:
     VarInfo() noexcept;
@@ -77,16 +77,17 @@ public:
     DataType get_data_type() const noexcept;
     int get_array_size() const noexcept;
     bool is_global() const noexcept;
-    int get_offset() const noexcept;
+    int get_start_offset() const noexcept;
 
     VarInfo *set_lexeme(string lexeme) noexcept;
     VarInfo *set_type(TokenType type) noexcept;
     VarInfo *set_data_type(DataType _data_type) noexcept;
     VarInfo *set_array_size(int _array_size) noexcept;
     VarInfo *set_global(bool _global) noexcept;
-    VarInfo *set_offset(int _offset) noexcept;
+    VarInfo *set_start_offset(int _start_offset) noexcept;
 
-    string get_address() const noexcept;
+    string
+    get_address() const noexcept;
 };
 
 class FuncInfo : public SymbolInfo

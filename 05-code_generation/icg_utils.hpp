@@ -52,4 +52,5 @@ string gen_and(string _reg1, string _reg2, string _comment);
 string gen_or(string _reg1, string _reg2);
 string gen_or(string _reg1, string _reg2, string _comment);
 
+string gen_global_var(string _var_name, int _size, string _comment);
 string get_lineno_comment(int _lineno);

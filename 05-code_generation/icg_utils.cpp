@@ -645,6 +645,28 @@ string gen_or(string _reg1, string _reg2, string _comment)
     return code;
 }
 
+string gen_global_var(string _var_name, int _array_size, string _comment)
+{
+    if (_comment != "")
+    {
+        _comment = "\t;" + _comment;
+    }
+    string code;
+    if (_array_size > 0)
+    {
+        code = "\
+" + _var_name +
+               " DW " + to_string(_array_size) + " DUP(0)" + _comment + "\n";
+    }
+    else
+    {
+        code = "\
+" + _var_name +
+               " DW 0" + _comment + "\n";
+    }
+    return code;
+}
+
 string get_lineno_comment(int _lineno)
 {
     return "line no: " + to_string(_lineno);
