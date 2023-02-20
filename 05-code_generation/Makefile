@@ -26,13 +26,10 @@ ScopeTable.o: ScopeTable.cpp
 SymbolTable.o: SymbolTable.cpp
 	$(CXX) -w -c -o $@ $<
 
-ParseTree.o: ParseTree.cpp
-	$(CXX) -w -c -o $@ $<
-
 icg_utils.o: icg_utils.cpp
 	$(CXX) -w -c -o $@ $<
 
-main: parser.o scanner.o SymbolTable.o  SymbolInfo.o ScopeTable.o ParseTree.o icg_utils.o 
+main: parser.o scanner.o SymbolTable.o  SymbolInfo.o ScopeTable.o icg_utils.o 
 	$(CXX) -o $@ $^ 
 
 run: main

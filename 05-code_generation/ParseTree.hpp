@@ -2,16 +2,6 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-typedef enum
-{
-    INT,
-    FLOAT,
-    VOID,
-    NULL_TYPE
-} DataType;
-
-extern map<DataType, string> data_type_to_string;
-
 class ParseTreeNode
 {
     int first_line, last_line;

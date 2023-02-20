@@ -3,7 +3,12 @@ using namespace std;
 
 #include "icg_utils.hpp"
 
-string gen_starting_code()
+int code_segment_lineno = 0;
+int label = 0;
+fstream asmcode_file;
+fstream code_segment_file;
+
+void gen_starting_code()
 {
     string code = "\
 .MODEL SMALL\n\
@@ -15,7 +20,7 @@ string gen_starting_code()
 CR EQU 0DH\n\
 LF EQU 0AH\n\
 NEWLINE DB CR, LF, '$'\n";
-    return code;
+    asmcode_file << code;
 }
 
 string gen_newline()
@@ -210,13 +215,13 @@ PRINTLN_INT ENDP\n";
     return code;
 }
 
-string gen_ending_code()
+void gen_ending_code()
 {
     string code = gen_2scomp() + "\n" + gen_newline() + "\n" + gen_print() + "\n" + gen_println() + "END MAIN\n"; // must have a main function
-    return code;
+    asmcode_file << code;
 }
 
-string gen_func_starting_code(string _func_name)
+void gen_func_starting_code(string _func_name)
 {
     string code = "\n" + _func_name + " PROC\n";
     if (_func_name == "main")
@@ -232,14 +237,15 @@ string gen_func_starting_code(string _func_name)
     }
     code += "\
     MOV BP, SP\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno = code_segment_lineno + 4 + (_func_name == "main");
 }
 
-string gen_func_ending_code(string _func_name, int _arg_size)
+void gen_func_ending_code(bool _is_main_func, int _arg_size)
 {
     string code;
     int pop_size = _arg_size * 2;
-    if (_func_name == "main")
+    if (_is_main_func)
     {
         code = "\
     MOV AX, 4CH\n\
@@ -252,35 +258,38 @@ string gen_func_ending_code(string _func_name, int _arg_size)
     RET " + to_string(pop_size) +
                string("\n");
     }
-    code += _func_name + " ENDP\n\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno += 2;
 }
 
-string gen_code(string _code)
+void gen_code(string _code)
 {
     string code = "\t" + _code + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_code(string _code, string _comment)
+void gen_code(string _code, string _comment)
 {
     if (_comment != "")
     {
         _comment = "\t;" + _comment;
     }
     string code = "\t" + _code + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_push(string _reg)
+void gen_push(string _reg)
 {
     string code = "\
     PUSH " + _reg +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_push(string _reg, string _comment)
+void gen_push(string _reg, string _comment)
 {
     if (_comment != "")
     {
@@ -289,18 +298,20 @@ string gen_push(string _reg, string _comment)
     string code = "\
     PUSH " + _reg +
                   _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_push(int _val)
+void gen_push(int _val)
 {
     string code = "\
     PUSH " + to_string(_val) +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_push(int _val, string _comment)
+void gen_push(int _val, string _comment)
 {
     if (_comment != "")
     {
@@ -309,17 +320,19 @@ string gen_push(int _val, string _comment)
     string code = "\
     PUSH " + to_string(_val) +
                   _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_pop(string _reg)
+void gen_pop(string _reg)
 {
     string code = "\
     POP " + _reg + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_pop(string _reg, string _comment)
+void gen_pop(string _reg, string _comment)
 {
     if (_comment != "")
     {
@@ -328,18 +341,20 @@ string gen_pop(string _reg, string _comment)
     string code = "\
     POP " + _reg + _comment +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_mov(string _reg1, string _reg2)
+void gen_mov(string _reg1, string _reg2)
 {
     string code = "\
     MOV " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_mov(string _reg1, string _reg2, string _comment)
+void gen_mov(string _reg1, string _reg2, string _comment)
 {
     if (_comment != "")
     {
@@ -348,18 +363,20 @@ string gen_mov(string _reg1, string _reg2, string _comment)
     string code = "\
     MOV " + _reg1 +
                   ", " + _reg2 + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_mov(string _reg1, int _val)
+void gen_mov(string _reg1, int _val)
 {
     string code = "\
     MOV " + _reg1 +
                   ", " + to_string(_val) + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_mov(string _reg1, int _val, string _comment)
+void gen_mov(string _reg1, int _val, string _comment)
 {
     if (_comment != "")
     {
@@ -368,18 +385,20 @@ string gen_mov(string _reg1, int _val, string _comment)
     string code = "\
     MOV " + _reg1 +
                   ", " + to_string(_val) + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_call(string _func_name)
+void gen_call(string _func_name)
 {
     string code = "\
     CALL " + _func_name +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_call(string _func_name, string _comment)
+void gen_call(string _func_name, string _comment)
 {
     if (_comment != "")
     {
@@ -388,18 +407,20 @@ string gen_call(string _func_name, string _comment)
     string code = "\
     CALL " + _func_name +
                   _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_sub(string _reg1, string _reg2)
+void gen_sub(string _reg1, string _reg2)
 {
     string code = "\
     SUB " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_sub(string _reg1, string _reg2, string _comment)
+void gen_sub(string _reg1, string _reg2, string _comment)
 {
     if (_comment != "")
     {
@@ -408,18 +429,20 @@ string gen_sub(string _reg1, string _reg2, string _comment)
     string code = "\
     SUB " + _reg1 +
                   ", " + _reg2 + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_sub(string _reg, int _val)
+void gen_sub(string _reg, int _val)
 {
     string code = "\
     SUB " + _reg + ", " +
                   to_string(_val) + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_sub(string _reg, int _val, string _comment)
+void gen_sub(string _reg, int _val, string _comment)
 {
     if (_comment != "")
     {
@@ -428,18 +451,20 @@ string gen_sub(string _reg, int _val, string _comment)
     string code = "\
     SUB " + _reg + ", " +
                   to_string(_val) + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_add(string _reg1, string _reg2)
+void gen_add(string _reg1, string _reg2)
 {
     string code = "\
     ADD " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_add(string _reg1, string _reg2, string _comment)
+void gen_add(string _reg1, string _reg2, string _comment)
 {
     if (_comment != "")
     {
@@ -448,18 +473,20 @@ string gen_add(string _reg1, string _reg2, string _comment)
     string code = "\
     ADD " + _reg1 +
                   ", " + _reg2 + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_add(string _reg, int _val)
+void gen_add(string _reg, int _val)
 {
     string code = "\
     ADD " + _reg + ", " +
                   to_string(_val) + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_add(string _reg, int _val, string _comment)
+void gen_add(string _reg, int _val, string _comment)
 {
     if (_comment != "")
     {
@@ -468,17 +495,19 @@ string gen_add(string _reg, int _val, string _comment)
     string code = "\
     ADD " + _reg + ", " +
                   to_string(_val) + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_neg(string _reg)
+void gen_neg(string _reg)
 {
     string code = "\
     NEG " + _reg + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_neg(string _reg, string _comment)
+void gen_neg(string _reg, string _comment)
 {
     if (_comment != "")
     {
@@ -487,34 +516,38 @@ string gen_neg(string _reg, string _comment)
     string code = "\
     NEG " + _reg + _comment +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_cmp(string _reg1, string _reg2)
+void gen_cmp(string _reg1, string _reg2)
 {
     string code = "\
     CMP " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_cmp(string _reg1, string _reg2, string _comment)
+void gen_cmp(string _reg1, string _reg2, string _comment)
 {
     string code = "\
     CMP " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_cmp(string _reg1, int _val)
+void gen_cmp(string _reg1, int _val)
 {
     string code = "\
     CMP " + _reg1 +
                   ", " + to_string(_val) + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_cmp(string _reg1, int _val, string _comment)
+void gen_cmp(string _reg1, int _val, string _comment)
 {
     if (_comment != "")
     {
@@ -523,17 +556,19 @@ string gen_cmp(string _reg1, int _val, string _comment)
     string code = "\
     CMP " + _reg1 +
                   ", " + to_string(_val) + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_label(string _label)
+void gen_label(string _label)
 {
     string code = "\
     " + _label + ":\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_label(string _label, string _comment)
+void gen_label(string _label, string _comment)
 {
     if (_comment != "")
     {
@@ -542,18 +577,20 @@ string gen_label(string _label, string _comment)
     string code = "\
     " + _label + ":" +
                   _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_imul(string _reg)
+void gen_imul(string _reg)
 {
     string code = "\
     IMUL " + _reg +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_imul(string _reg, string _comment)
+void gen_imul(string _reg, string _comment)
 {
     if (_comment != "")
     {
@@ -562,18 +599,20 @@ string gen_imul(string _reg, string _comment)
     string code = "\
     IMUL " + _reg +
                   _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_idiv(string _reg)
+void gen_idiv(string _reg)
 {
     string code = "\
     IDIV " + _reg +
                   "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_idiv(string _reg, string _comment)
+void gen_idiv(string _reg, string _comment)
 {
     if (_comment != "")
     {
@@ -582,18 +621,20 @@ string gen_idiv(string _reg, string _comment)
     string code = "\
     IDIV " + _reg +
                   _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_xor(string _reg1, string _reg2)
+void gen_xor(string _reg1, string _reg2)
 {
     string code = "\
     XOR " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_xor(string _reg1, string _reg2, string _comment)
+void gen_xor(string _reg1, string _reg2, string _comment)
 {
     if (_comment != "")
     {
@@ -602,18 +643,20 @@ string gen_xor(string _reg1, string _reg2, string _comment)
     string code = "\
     XOR " + _reg1 +
                   ", " + _reg2 + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_and(string _reg1, string _reg2)
+void gen_and(string _reg1, string _reg2)
 {
     string code = "\
     AND " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_and(string _reg1, string _reg2, string _comment)
+void gen_and(string _reg1, string _reg2, string _comment)
 {
     if (_comment != "")
     {
@@ -622,18 +665,20 @@ string gen_and(string _reg1, string _reg2, string _comment)
     string code = "\
     AND " + _reg1 +
                   ", " + _reg2 + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_or(string _reg1, string _reg2)
+void gen_or(string _reg1, string _reg2)
 {
     string code = "\
     OR " + _reg1 +
                   ", " + _reg2 + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_or(string _reg1, string _reg2, string _comment)
+void gen_or(string _reg1, string _reg2, string _comment)
 {
     if (_comment != "")
     {
@@ -642,10 +687,11 @@ string gen_or(string _reg1, string _reg2, string _comment)
     string code = "\
     OR " + _reg1 +
                   ", " + _reg2 + _comment + "\n";
-    return code;
+    code_segment_file << code;
+    code_segment_lineno++;
 }
 
-string gen_global_var(string _var_name, int _array_size, string _comment)
+void gen_global_var(string _var_name, int _array_size, string _comment)
 {
     if (_comment != "")
     {
@@ -664,10 +710,15 @@ string gen_global_var(string _var_name, int _array_size, string _comment)
 " + _var_name +
                " DW 0" + _comment + "\n";
     }
-    return code;
+    asmcode_file << code;
 }
 
 string get_lineno_comment(int _lineno)
 {
     return "line no: " + to_string(_lineno);
+}
+
+string get_newlabel()
+{
+    return "label_" + to_string(label++);
 }

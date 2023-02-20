@@ -1,10 +1,32 @@
 #include "SymbolInfo.hpp"
 
+map<DataType, string> data_type_to_string = {
+    {DataType::INT, "int"},
+    {DataType::FLOAT, "float"},
+    {DataType::VOID, "void"},
+    {DataType::NULL_TYPE, "null"}};
+
 SymbolInfo *NULL_SYMBOL_INFO = new SymbolInfo();
 
-SymbolInfo::SymbolInfo() noexcept : lexeme(""), type(TokenType::SI_NULL), next_symbol_info(nullptr) {}
+SymbolInfo::SymbolInfo() noexcept : lexeme(""), type(TokenType::SI_NULL), next_symbol_info(nullptr), data_type(DataType::NULL_TYPE), array_size(-1), global(false), start_offset(0)
+{
+    this->param_types = vector<DataType>();
+    this->truelist = vector<int>();
+    this->falselist = vector<int>();
+    this->nextlist = vector<int>();
+}
 
-SymbolInfo::~SymbolInfo() noexcept {}
+SymbolInfo::SymbolInfo(SymbolInfo *_symbol_info) noexcept : lexeme(_symbol_info->get_lexeme()), type(_symbol_info->get_type()), next_symbol_info(_symbol_info->get_next_symbol_info()), data_type(_symbol_info->get_data_type()), array_size(_symbol_info->get_array_size()), global(_symbol_info->is_global()), start_offset(_symbol_info->get_start_offset())
+{
+    this->param_types = _symbol_info->get_param_types();
+    this->truelist = _symbol_info->get_truelist();
+    this->falselist = _symbol_info->get_falselist();
+    this->nextlist = _symbol_info->get_nextlist();
+}
+
+SymbolInfo::~SymbolInfo() noexcept
+{
+}
 
 string SymbolInfo::get_lexeme() const noexcept
 {
@@ -21,9 +43,54 @@ SymbolInfo *SymbolInfo::get_next_symbol_info() const noexcept
     return this->next_symbol_info;
 }
 
-SymbolInfo *SymbolInfo::set_lexeme(string lexeme) noexcept
+DataType SymbolInfo::get_data_type() const noexcept
 {
-    this->lexeme = lexeme;
+    return this->data_type;
+}
+
+int SymbolInfo::get_array_size() const noexcept
+{
+    return this->array_size;
+}
+
+bool SymbolInfo::is_global() const noexcept
+{
+    return this->global;
+}
+
+int SymbolInfo::get_start_offset() const noexcept
+{
+    return this->start_offset;
+}
+
+DataType SymbolInfo::get_return_type() const noexcept
+{
+    return this->data_type;
+}
+
+vector<DataType> SymbolInfo::get_param_types() const noexcept
+{
+    return this->param_types;
+}
+
+vector<int> SymbolInfo::get_truelist() const noexcept
+{
+    return this->truelist;
+}
+
+vector<int> SymbolInfo::get_falselist() const noexcept
+{
+    return this->falselist;
+}
+
+vector<int> SymbolInfo::get_nextlist() const noexcept
+{
+    return this->nextlist;
+}
+
+SymbolInfo *SymbolInfo::set_lexeme(string _lexeme) noexcept
+{
+    this->lexeme = _lexeme;
     return this;
 }
 
@@ -39,67 +106,61 @@ SymbolInfo *SymbolInfo::set_next_symbol_info(SymbolInfo *next_symbol_info) noexc
     return this;
 }
 
-VarInfo::VarInfo() noexcept : SymbolInfo(), data_type(DataType::NULL_TYPE), array_size(-1), global(false), start_offset(0) {}
-
-VarInfo::~VarInfo() noexcept {}
-
-DataType VarInfo::get_data_type() const noexcept
-{
-    return this->data_type;
-}
-
-int VarInfo::get_array_size() const noexcept
-{
-    return this->array_size;
-}
-
-bool VarInfo::is_global() const noexcept
-{
-    return this->global;
-}
-
-int VarInfo::get_start_offset() const noexcept
-{
-    return this->start_offset;
-}
-
-VarInfo *VarInfo::set_lexeme(string lexeme) noexcept
-{
-    this->lexeme = lexeme;
-    return this;
-}
-
-VarInfo *VarInfo::set_type(TokenType type) noexcept
-{
-    this->type = type;
-    return this;
-}
-
-VarInfo *VarInfo::set_data_type(DataType _data_type) noexcept
+SymbolInfo *SymbolInfo::set_data_type(DataType _data_type) noexcept
 {
     this->data_type = _data_type;
     return this;
 }
 
-VarInfo *VarInfo::set_array_size(int _array_size) noexcept
+SymbolInfo *SymbolInfo::set_array_size(int _array_size) noexcept
 {
     this->array_size = _array_size;
     return this;
 }
 
-VarInfo *VarInfo::set_global(bool _global) noexcept
+SymbolInfo *SymbolInfo::set_global(bool _global) noexcept
 {
     this->global = _global;
     return this;
 }
 
-VarInfo *VarInfo::set_start_offset(int _start_offset) noexcept
+SymbolInfo *SymbolInfo::set_start_offset(int _start_offset) noexcept
 {
     this->start_offset = _start_offset;
     return this;
 }
 
-string VarInfo::get_address() const noexcept
+SymbolInfo *SymbolInfo::set_return_type(DataType _return_type) noexcept
+{
+    this->data_type = _return_type;
+    return this;
+}
+
+SymbolInfo *SymbolInfo::set_param_types(vector<DataType> _param_types) noexcept
+{
+    this->param_types = _param_types;
+    return this;
+}
+
+SymbolInfo *SymbolInfo::set_truelist(vector<int> _truelist) noexcept
+{
+    this->truelist = _truelist;
+    return this;
+}
+
+SymbolInfo *SymbolInfo::set_falselist(vector<int> _falselist) noexcept
+{
+    this->falselist = _falselist;
+    return this;
+}
+
+SymbolInfo *SymbolInfo::set_nextlist(vector<int> _nextlist) noexcept
+{
+    this->nextlist = _nextlist;
+    return this;
+}
+
+string SymbolInfo::get_address() const noexcept
 {
     if (this->global)
     {
@@ -112,64 +173,49 @@ string VarInfo::get_address() const noexcept
     }
 }
 
-FuncInfo::FuncInfo() noexcept : SymbolInfo(), return_type(DataType::NULL_TYPE), param_types(vector<DataType>()) {}
-
-FuncInfo::~FuncInfo() noexcept {}
-
-DataType FuncInfo::get_return_type() const noexcept
+bool SymbolInfo::is_compatible_with(SymbolInfo *_symbol_info) noexcept
 {
-    return this->return_type;
-}
-
-vector<DataType> FuncInfo::get_param_types() const noexcept
-{
-    return this->param_types;
-}
-
-FuncInfo *FuncInfo::set_lexeme(string _lexeme) noexcept
-{
-    this->lexeme = _lexeme;
-    return this;
-}
-
-FuncInfo *FuncInfo::set_type(TokenType _type) noexcept
-{
-    this->type = _type;
-    return this;
-}
-
-FuncInfo *FuncInfo::set_return_type(DataType _return_type) noexcept
-{
-    this->return_type = _return_type;
-    return this;
-}
-
-FuncInfo *FuncInfo::set_param_types(vector<DataType> _param_types) noexcept
-{
-    this->param_types = _param_types;
-    return this;
-}
-
-bool FuncInfo::is_compatible_with(FuncInfo *func_info) noexcept
-{
-    if (this->lexeme != func_info->get_lexeme())
+    if (this->lexeme != _symbol_info->get_lexeme())
     {
         return false;
     }
-    if (this->return_type != func_info->get_return_type())
+    if (this->get_return_type() != _symbol_info->get_return_type())
     {
         return false;
     }
-    if (this->param_types.size() != func_info->get_param_types().size())
+    if (this->param_types.size() != _symbol_info->get_param_types().size())
     {
         return false;
     }
     for (int i = 0; i < this->param_types.size(); i++)
     {
-        if (this->param_types[i] != func_info->get_param_types()[i])
+        if (this->param_types[i] != _symbol_info->get_param_types()[i])
         {
             return false;
         }
     }
     return true;
+}
+
+SymbolInfo *SymbolInfo::add_to_truelist(int _lineno) noexcept
+{
+    this->truelist.push_back(_lineno);
+    return this;
+}
+
+SymbolInfo *SymbolInfo::add_to_falselist(int _lineno) noexcept
+{
+    this->falselist.push_back(_lineno);
+    return this;
+}
+
+SymbolInfo *SymbolInfo::add_to_nextlist(int _lineno) noexcept
+{
+    this->nextlist.push_back(_lineno);
+    return this;
+}
+
+bool SymbolInfo::has_jump() const noexcept
+{
+    return this->truelist.size() > 0 || this->falselist.size() > 0;
 }

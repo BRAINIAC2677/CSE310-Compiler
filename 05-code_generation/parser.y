@@ -6,9 +6,6 @@
   	typedef void* yyscan_t;
   	#endif
   	class SymbolInfo;
-	class VarInfo;
-  	class ParseTreeNode;
-
 }
 
 
@@ -33,7 +30,6 @@
 	using namespace std;
 
 	#include "scanner.h"
-	#include "ParseTree.hpp"
 	#include "SymbolInfo.hpp"
 	#include "SymbolTable.hpp"
 	#include "icg_utils.hpp"
@@ -46,19 +42,36 @@
 {
 	//global variables
 	bool is_global_scope = true;
+	bool is_main_func = false;
+	bool is_func_compound_statement = false;
+	bool is_rel_exp = false;
+	int current_func_base_offset = 0;
 	int array_index = -1; // -1 means not array index
-	int label = 0;
-	string input_file_name, parsetree_file_name, error_file_name, asmcode_file_name, code_segment_file_name;
-	ofstream parsetree_file, error_file, asmcode_file;
-	fstream code_segment_file;
+	string input_file_name, error_file_name, asmcode_file_name, code_segment_file_name;
+	ofstream error_file;
 	SymbolTable symbol_table;
-	vector<pair<pair<SymbolInfo*, int>, ParseTreeNode*>> var_decl_list; // first.second is the array size, -1 if not array
-	vector<pair<DataType, string>> func_params;
+	vector<SymbolInfo*> var_decl_list; 
+	vector<SymbolInfo*> func_params;
 	vector<DataType> func_arg_types;
+	map<int, string> jumping_label;
 
-	string get_newlabel()
+
+	void backpatch(vector<int> lines, string label)
 	{
-		return "label_" + to_string(label++);
+		for(auto line: lines)
+		{
+			jumping_label[line] = label;
+		}
+	}
+
+	vector<int> merge(vector<int> a, vector<int> b)
+	{
+		vector<int> ret = a;
+		for(auto i:b)
+		{
+			ret.push_back(i);
+		}
+		return ret;
 	}
 
 	//error functions
@@ -127,9 +140,9 @@
 		error_file << "Line# " << lineno << ": " << "Void cannot be used in expression\n";
 	}
 
-	void warning_data_loss(int lineno, DataType from, DataType to)
+	void warning_data_loss(int lineno)
 	{
-		error_file << "Line# " << lineno << ": " << "Warning: possible loss of data in assignment of "<<data_type_to_string[from]<<" to "<<data_type_to_string[to]<<"\n";
+		error_file << "Line# " << lineno << ": " << "Warning: possible loss of data in assignment of float to int\n";
 	}
 
 	void warning_div_by_zero(int lineno)
@@ -181,9 +194,11 @@
 %param {yyscan_t scanner}
 
 
-%type <ParseTreeNode*> start program unit func_declaration func_definition parameter_list compound_statement var_declaration type_specifier declaration_list statements statement expression_statement expression logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
+%type <SymbolInfo*> start program unit func_declaration func_definition parameter_list var_declaration type_specifier declaration_list expression_statement expression simple_expression term unary_expression factor argument_list arguments
 
-%type <VarInfo*> variable
+%type <SymbolInfo*> rel_expression logic_expression statement statements compound_statement
+%type <SymbolInfo*> variable
+%type <SymbolInfo*> marker1 marker2 
 
 %token IF WHILE FOR RETURN INT FLOAT VOID LPAREN LCURL RCURL LTHIRD RTHIRD SEMICOLON COMMA PRINTLN 
 %token <SymbolInfo*> ID CONST_INT CONST_FLOAT
@@ -206,23 +221,21 @@ start :
 	{
 		asmcode_file.open(asmcode_file_name, ios::out | ios::trunc);
 		code_segment_file.open(code_segment_file_name, ios::out | ios::in | ios::trunc);
-		asmcode_file << gen_starting_code();
-		code_segment_file << "\n.CODE\n\n";
+		gen_starting_code();
 	}
 	program
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("start : program");
-		$$->add_child($2);
-
-		ParseTreeNode::print_parsetree(parsetree_file,$$, 0);
-
+		int lineno = 1;
+		asmcode_file << "\n.CODE\n\n";
 		code_segment_file.seekg(0, ios::beg);
 		string line;
 		while(getline(code_segment_file, line))
 		{
-			asmcode_file << line << endl;
+			// cout<<"lineno: "<<lineno<<" "<<jumping_label[lineno]<<endl;
+			asmcode_file << line + (jumping_label[lineno] == ""?"":" "+jumping_label[lineno]) << endl;
+			lineno++;
 		}
-		asmcode_file << gen_ending_code();
+		gen_ending_code();
 		code_segment_file.close();
 		asmcode_file.close();
 	}
@@ -231,54 +244,36 @@ start :
 program : 
 	program unit 
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("program : program unit");
-		$$->add_child($1)->add_child($2);
 	}
 	| 
 	unit
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("program : unit");
-		$$->add_child($1);
 	}
 	;
 	
 unit : 
 	var_declaration
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("unit : var_declaration");
-		$$->add_child($1);
 	}
     | 
 	func_declaration
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("unit : func_declaration");
-		$$->add_child($1);
 	}
     | 
 	func_definition
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("unit : func_definition");
-		$$->add_child($1);
 	}
     ;
      
 func_declaration : 
 		type_specifier ID LPAREN parameter_list RPAREN SEMICOLON
 		{
-			ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("ID : " + $2->get_lexeme());
-			ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("LPAREN : (");
-			ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@5.first_line)->set_last_line(@5.last_line)->set_rule("RPAREN : )");
-			ParseTreeNode* semicolon_node = (new ParseTreeNode())->set_first_line(@6.first_line)->set_last_line(@6.last_line)->set_rule("SEMICOLON : ;");
-
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON");
-			$$->add_child($1)->add_child(id_node)->add_child(lparen_node)->add_child($4)->add_child(rparen_node)->add_child(semicolon_node);
-
 			vector<DataType> param_types = vector<DataType>();
 			for(auto param : func_params)
 			{
-				param_types.push_back(param.first);
+				param_types.push_back(param->get_data_type());
 			}
-			FuncInfo* func_info = (new FuncInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DECL_ID)->set_return_type($1->get_data_type())->set_param_types(param_types);
+			SymbolInfo* func_info = (new SymbolInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DECL_ID)->set_return_type($1->get_data_type())->set_param_types(param_types);
 			
 			//semantic errors
 			SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
@@ -290,7 +285,7 @@ func_declaration :
 			{
 				error_redeclared_different_kind(@2.first_line, $2->get_lexeme());
 			}
-			else if((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID || symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID) && (!func_info->is_compatible_with((FuncInfo*)symbol_info)))
+			else if((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID || symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID) && (!func_info->is_compatible_with((SymbolInfo*)symbol_info)))
 			{
 				error_conflicting_type(@2.first_line, $2->get_lexeme());
 			}
@@ -299,15 +294,7 @@ func_declaration :
 		| 
 		type_specifier ID LPAREN RPAREN SEMICOLON
 		{
-			ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("ID : " + $2->get_lexeme());
-			ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("LPAREN : (");
-			ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RPAREN : )");
-			ParseTreeNode* semicolon_node = (new ParseTreeNode())->set_first_line(@5.first_line)->set_last_line(@5.last_line)->set_rule("SEMICOLON : ;");
-
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("func_declaration : type_specifier ID LPAREN RPAREN SEMICOLON");
-			$$->add_child($1)->add_child(id_node)->add_child(lparen_node)->add_child(rparen_node)->add_child(semicolon_node);
-
-			FuncInfo* func_info = (new FuncInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DECL_ID)->set_return_type($1->get_data_type());
+			SymbolInfo* func_info = (new SymbolInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DECL_ID)->set_return_type($1->get_data_type());
 
 			//semantic errors
             SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
@@ -319,7 +306,7 @@ func_declaration :
 			{
 				error_redeclared_different_kind(@2.first_line, $2->get_lexeme());
 			}
-			else if((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID || symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID) && (!func_info->is_compatible_with((FuncInfo*)symbol_info)))
+			else if((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID || symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID) && (!func_info->is_compatible_with((SymbolInfo*)symbol_info)))
 			{
 				error_conflicting_type(@2.first_line, $2->get_lexeme());
 			}
@@ -330,19 +317,25 @@ func_definition :
 	type_specifier ID LPAREN parameter_list RPAREN 
 	{
 		is_global_scope = false;
+		is_func_compound_statement = true;
+		if($2->get_lexeme() == "main")
+		{
+			is_main_func = true;
+		}
+		current_func_base_offset = symbol_table.get_current_scope()->get_current_offset();
 		vector<DataType> param_types = vector<DataType>();
 		for(auto param: func_params)
 		{
-			param_types.push_back(param.first);
+			param_types.push_back(param->get_data_type());
 		}
-		FuncInfo* func_info = (new FuncInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DEF_ID)->set_return_type($1->get_data_type())->set_param_types(param_types);
+		SymbolInfo* func_info = (new SymbolInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DEF_ID)->set_return_type($1->get_data_type())->set_param_types(param_types);
 
 		//semantic errors
 		SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
 		if(symbol_info == NULL_SYMBOL_INFO)
 		{
 			symbol_table.insert((SymbolInfo*)func_info);
-			code_segment_file << gen_func_starting_code($2->get_lexeme());
+			gen_func_starting_code($2->get_lexeme());
 		}
 		else if(symbol_info->get_type() == TokenType::SI_VAR_ID)
 		{
@@ -352,36 +345,41 @@ func_definition :
 		{
 			error_multiple_definition(@2.first_line, $2->get_lexeme());
 		}
-		else if(symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID && (!func_info->is_compatible_with((FuncInfo*)symbol_info)))
+		else if(symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID && (!func_info->is_compatible_with((SymbolInfo*)symbol_info)))
 		{
 			error_conflicting_type(@2.first_line, $2->get_lexeme());
 		}
 	}
 	compound_statement
 	{
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("ID : " + $2->get_lexeme());
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@5.first_line)->set_last_line(@5.last_line)->set_rule("RPAREN : )");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement");
-		$$->add_child($1)->add_child(id_node)->add_child(lparen_node)->add_child($4)->add_child(rparen_node)->add_child($7);
-
-		code_segment_file << gen_func_ending_code($2->get_lexeme(), func_params.size());
+		gen_func_ending_code(is_main_func, func_params.size());
+		gen_code($2->get_lexeme() + " ENDP");
+		gen_code("");
 		func_params.clear();
 		is_global_scope = true;
+		if(is_main_func)
+		{
+			is_main_func = false;
+		}
 	}
 	| 
 	type_specifier ID LPAREN RPAREN
 	{
 		is_global_scope = false;
-		FuncInfo* func_info = (new FuncInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DEF_ID)->set_return_type($1->get_data_type());
+		is_func_compound_statement = true;
+		if($2->get_lexeme() == "main")
+		{
+			is_main_func = true;
+		}
+		current_func_base_offset = symbol_table.get_current_scope()->get_current_offset();
+		SymbolInfo* func_info = (new SymbolInfo())->set_lexeme($2->get_lexeme())->set_type(SI_FUNC_DEF_ID)->set_return_type($1->get_data_type());
 
 		//semantic errors
 		SymbolInfo* symbol_info = symbol_table.lookup($2->get_lexeme());
 		if(symbol_info == NULL_SYMBOL_INFO)
 		{
 			symbol_table.insert((SymbolInfo*)func_info);
-			code_segment_file<<gen_func_starting_code($2->get_lexeme());
+			gen_func_starting_code($2->get_lexeme());
 		}
 		else if(symbol_info->get_type() == TokenType::SI_VAR_ID)
 		{
@@ -391,7 +389,7 @@ func_definition :
 		{
 			error_multiple_definition(@2.first_line, $2->get_lexeme());
 		}
-		else if(symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID && (!func_info->is_compatible_with((FuncInfo*)symbol_info)))
+		else if(symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID && (!func_info->is_compatible_with((SymbolInfo*)symbol_info)))
 		{
 			error_conflicting_type(@2.first_line, $2->get_lexeme());
 		}
@@ -399,15 +397,14 @@ func_definition :
 	} 
 	compound_statement
 	{
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("ID : " + $2->get_lexeme());
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RPAREN : )");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("func_definition : type_specifier ID LPAREN RPAREN compound_statement");
-		$$->add_child($1)->add_child(id_node)->add_child(lparen_node)->add_child(rparen_node)->add_child($6);
-
-		code_segment_file << gen_func_ending_code($2->get_lexeme(), 0);
+		gen_func_ending_code(is_main_func, 0);
+		gen_code($2->get_lexeme() + " ENDP");
+		gen_code("");
 		is_global_scope = true;
+		if(is_main_func)
+		{
+			is_main_func = false;
+		}
 	}
  	;				
 
@@ -415,47 +412,30 @@ func_definition :
 parameter_list  : 
 		parameter_list COMMA type_specifier ID
 		{
-			ParseTreeNode* comma_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("COMMA : ,");
-			ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_data_type($3->get_data_type())->set_rule("ID : " + $4->get_lexeme());
-
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("parameter_list  : parameter_list COMMA type_specifier ID");
-			$$->add_child($1)->add_child(comma_node)->add_child($3)->add_child(id_node);
-
-			func_params.push_back({$3->get_data_type(), $4->get_lexeme()});
+			$4->set_data_type($3->get_data_type());
+			func_params.push_back($4);
 		}
 		| 
 		parameter_list COMMA type_specifier
 		{
-			ParseTreeNode* comma_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("COMMA : ,");
 
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("parameter_list  : parameter_list COMMA type_specifier");
-			$$->add_child($1)->add_child(comma_node)->add_child($3);
-
-			func_params.push_back({$3->get_data_type(), ""});
+			func_params.push_back((new SymbolInfo())->set_data_type($3->get_data_type()));
 		}
  		| 
 		type_specifier ID
 		{
-			ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_data_type($1->get_data_type())->set_rule("ID : " + $2->get_lexeme());
-
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("parameter_list  : type_specifier ID");
-			$$->add_child($1)->add_child(id_node);
-
-			func_params.push_back({$1->get_data_type(), $2->get_lexeme()});
+			$2->set_data_type($1->get_data_type());
+			func_params.push_back($2);
 		}
 		| 
 		type_specifier
 		{
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("parameter_list  : type_specifier");
-			$$->add_child($1);
-
-			func_params.push_back({$1->get_data_type(), ""});
+			func_params.push_back((new SymbolInfo())->set_data_type($1->get_data_type()));
 		}
 		|
 		error
 		{
 			yyclearin;
-			$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("parameter_list  : error");
 		}
  		;
 
@@ -471,13 +451,14 @@ compound_statement :
 		// cout<<symbol_table<<endl;
 
 		// inserting parameters of function definition
-		if(func_params.size() > 0)
+		if(is_func_compound_statement)
 		{
+			is_func_compound_statement = false;
 			symbol_table.get_current_scope()->set_current_offset(0);
 			symbol_table.get_current_scope()->set_base_offset(0);
-			for(int i = 0; i < func_params.size(); i++)
+			for(int i = func_params.size() - 1, j = 0; i >= 0; i--, j++)
 			{
-				VarInfo* var_info = (new VarInfo())->set_lexeme(func_params[i].second)->set_type(SI_VAR_ID)->set_data_type(func_params[i].first)->set_start_offset(4 + 2*i)->set_global(false);
+				SymbolInfo* var_info = (new SymbolInfo())->set_lexeme(func_params[i]->get_lexeme())->set_type(SI_VAR_ID)->set_data_type(func_params[i]->get_data_type())->set_start_offset(4 + 2*j)->set_global(false);
 
 				//semantic errors
 				SymbolInfo* symbol_info = symbol_table.get_current_scope()->lookup(var_info->get_lexeme());
@@ -492,13 +473,11 @@ compound_statement :
 			}
 		}
 	}
-	statements RCURL
+	statements marker1 RCURL
 	{
-		ParseTreeNode* lcurl_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("LCURL : {");
-		ParseTreeNode* rcurl_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RCURL : }");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("compound_statement : LCURL statements RCURL");
-		$$->add_child(lcurl_node)->add_child($3)->add_child(rcurl_node);
+		$$ = new SymbolInfo($3);
+		backpatch($3->get_nextlist(), $4->get_lexeme());
+		$$->set_nextlist(vector<int>());
 
 		// cout<<"exiting scope\n";
 		// cout<<symbol_table<<endl;
@@ -506,34 +485,24 @@ compound_statement :
 		// popping stack space for declared variables in this scope
 		if(symbol_table.get_current_scope()->get_current_offset() - symbol_table.get_current_scope()->get_base_offset() > 0)
 		{
-			code_segment_file<<gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - symbol_table.get_current_scope()->get_base_offset());
+			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - symbol_table.get_current_scope()->get_base_offset());
 		}
 		symbol_table.exit_scope();
 	}
  	| 
 	LCURL RCURL
 	{
-		ParseTreeNode* lcurl_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("LCURL : {");
-		ParseTreeNode* rcurl_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("RCURL : }");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("compound_statement : LCURL RCURL");
-		$$->add_child(lcurl_node)->add_child(rcurl_node);
+		$$ = new SymbolInfo();
 	}
  	;
 
 var_declaration : 
 	type_specifier declaration_list SEMICOLON
 	{
-		ParseTreeNode* semi_colon_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("SEMICOLON : ;");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("var_declaration : type_specifier declaration_list SEMICOLON");
-		$$->add_child($1)->add_child($2)->add_child(semi_colon_node);
-
 		for(auto var : var_decl_list)
 		{
-			var.second->set_data_type($1->get_data_type());
 
-			VarInfo* var_info = (new VarInfo())->set_lexeme(var.first.first->get_lexeme())->set_type(TokenType::SI_VAR_ID)->set_data_type($1->get_data_type())->set_array_size(var.first.second)->set_global(is_global_scope);
+			SymbolInfo* var_info = (new SymbolInfo())->set_lexeme(var->get_lexeme())->set_type(TokenType::SI_VAR_ID)->set_data_type($1->get_data_type())->set_array_size(var->get_array_size())->set_global(is_global_scope);
 			SymbolInfo* symbol_info = symbol_table.get_current_scope()->lookup(var_info->get_lexeme());
 
 			if(var_info->get_data_type() == DataType::VOID)
@@ -553,10 +522,11 @@ var_declaration :
 						symbol_table.get_current_scope()->inc_current_offset();
 					}
 					var_info->set_start_offset(-symbol_table.get_current_scope()->get_current_offset());
+
 				}
 				else 
 				{
-					asmcode_file<< gen_global_var(var_info->get_lexeme(), var_info->get_array_size(), get_lineno_comment(@3.first_line));
+					gen_global_var(var_info->get_lexeme(), var_info->get_array_size(), get_lineno_comment(@3.first_line));
 				}
 				symbol_table.insert((SymbolInfo*)var_info);
 			}
@@ -567,8 +537,8 @@ var_declaration :
 		}
 		if(!is_global_scope)
 		{
-			code_segment_file<<gen_mov("SP", "BP");
-			code_segment_file<<gen_sub("SP", symbol_table.get_current_scope()->get_current_offset());
+			gen_mov("SP", "BP");
+			gen_sub("SP", symbol_table.get_current_scope()->get_current_offset());
 		}
 		var_decl_list.clear();
 	}
@@ -577,206 +547,208 @@ var_declaration :
 type_specifier	: 
 	INT 
 	{
-		ParseTreeNode* int_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_data_type(DataType::INT)->set_rule("INT : int");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type(DataType::INT)->set_rule("type_specifier : INT")->add_child(int_node);
+		$$ = (new SymbolInfo())->set_data_type(DataType::INT);
 	}
  	| 
 	FLOAT
 	{
-		ParseTreeNode* float_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_data_type(DataType::FLOAT)->set_rule("FLOAT : float");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type(DataType::FLOAT)->set_rule("type_specifier : FLOAT")->add_child(float_node);
+		$$ = (new SymbolInfo())->set_data_type(DataType::FLOAT);
 	}
  	| 
 	VOID
 	{
-		ParseTreeNode* void_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_data_type(DataType::VOID)->set_rule("VOID : void");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type(DataType::VOID)->set_rule("type_specifier : VOID")->add_child(void_node);
+		$$ = (new SymbolInfo())->set_data_type(DataType::VOID);
 	}
  	;
  		
 declaration_list : 
 	declaration_list COMMA ID
 	{
-		ParseTreeNode* comma_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("COMMA : ,");
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("ID : "+$3->get_lexeme());
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("declaration_list : declaration_list COMMA ID");
-		$$->add_child($1)->add_child(comma_node)->add_child(id_node);
-
-		var_decl_list.push_back({{$3, -1}, id_node});
+		var_decl_list.push_back($3);
 	}
  	| 
 	declaration_list COMMA ID LTHIRD CONST_INT RTHIRD
 	{
-		ParseTreeNode* comma_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("COMMA : ,");
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("ID : "+$3->get_lexeme());
-		ParseTreeNode* lthird_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("LTHIRD : [");
-		ParseTreeNode* const_int_node = (new ParseTreeNode())->set_first_line(@5.first_line)->set_last_line(@5.last_line)->set_rule("CONST_INT : "+$5->get_lexeme());
-		ParseTreeNode* rthird_node = (new ParseTreeNode())->set_first_line(@6.first_line)->set_last_line(@6.last_line)->set_rule("RTHIRD : ]");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("declaration_list : declaration_list COMMA ID LTHIRD CONST_INT RTHIRD");
-		$$->add_child($1)->add_child(comma_node)->add_child(id_node)->add_child(lthird_node)->add_child(const_int_node)->add_child(rthird_node);
-
-		var_decl_list.push_back({{$3, stoi($5->get_lexeme())}, id_node});
+		$3->set_array_size(stoi($5->get_lexeme()));
+		var_decl_list.push_back($3);
 	}
  	| 
 	ID 
 	{
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("ID : "+$1->get_lexeme());
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("declaration_list : ID");
-		$$->add_child(id_node);
-
-		var_decl_list.push_back({{$1, -1}, id_node});
+		var_decl_list.push_back($1);
 	}
  	| 
 	ID LTHIRD CONST_INT RTHIRD
 	{
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("ID : "+$1->get_lexeme());
-		ParseTreeNode* lthird_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LTHIRD : [");
-		ParseTreeNode* const_int_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("CONST_INT : "+$3->get_lexeme());
-		ParseTreeNode* rthird_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RTHIRD : ]");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("declaration_list : ID LTHIRD CONST_INT RTHIRD");
-		$$->add_child(id_node)->add_child(lthird_node)->add_child(const_int_node)->add_child(rthird_node);
-
-		var_decl_list.push_back({{$1, stoi($3->get_lexeme())}, id_node});
+		$1->set_array_size(stoi($3->get_lexeme()));
+		var_decl_list.push_back($1);
 	}
 	|
 	error
 	{
 		yyclearin;
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("declaration_list : error");
 	}
  	;
  		  
 statements : 
 	statement
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statements : statement");
-		$$->add_child($1);
+		$$ = $1;
 	}
 	| 
-	statements statement
+	statements marker1 statement
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statements : statements statement");
-		$$->add_child($1)->add_child($2);
+		backpatch($1->get_nextlist(), $2->get_lexeme());
+		$$ = new SymbolInfo($3);
 	}
 	;
 	   
 statement : 
 	var_declaration
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : var_declaration");
-		$$->add_child($1);
+		$$ = new SymbolInfo();
 	}
 	|
 	expression_statement
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : expression_statement");
-		$$->add_child($1);
+		$$ = new SymbolInfo();
 	}
 	| 
 	compound_statement
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : compound_statement");
-		$$->add_child($1);
+		$$ = $1;
 	}
 	| 
-	FOR LPAREN expression_statement expression_statement expression RPAREN statement
+	FOR LPAREN expression_statement marker1 expression_statement
 	{
-		ParseTreeNode* for_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("FOR : for");
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@6.first_line)->set_last_line(@6.last_line)->set_rule("RPAREN : )");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : FOR LPAREN expression_statement expression_statement expression RPAREN statement");
-		$$->add_child(for_node)->add_child(lparen_node)->add_child($3)->add_child($4)->add_child($5)->add_child(rparen_node)->add_child($7);
+		if(!($5->has_jump()))
+		{
+			gen_cmp("AX", "0", get_lineno_comment(@2.first_line));
+			gen_code("JNE");
+			$5->add_to_truelist(code_segment_lineno);
+			gen_code("JMP");
+			$5->add_to_falselist(code_segment_lineno);
+		}
+	} 
+	marker1 expression
+	{
+		if(!($8->has_jump()))
+		{
+			gen_pop("AX", get_lineno_comment(@1.first_line));
+		}
+		gen_code("JMP "+$4->get_lexeme(), get_lineno_comment(@1.first_line));
+	}
+	RPAREN marker1 statement
+	{
+		backpatch($12->get_nextlist(), $7->get_lexeme());
+		backpatch($5->get_truelist(), $11->get_lexeme());
+		$$ = (new SymbolInfo())->set_nextlist($5->get_falselist());
+		gen_code("JMP "+$7->get_lexeme(), get_lineno_comment(@1.first_line));
 	}
 	| 
-	IF LPAREN expression RPAREN statement
+	IF LPAREN expression RPAREN marker1 statement
 	{
-		ParseTreeNode* if_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("IF : if");
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RPAREN : )");
 
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : IF LPAREN expression RPAREN statement");
-		$$->add_child(if_node)->add_child(lparen_node)->add_child($3)->add_child(rparen_node)->add_child($5);
+		backpatch($3->get_truelist(), $5->get_lexeme());
+		$$ = (new SymbolInfo())->set_nextlist(merge($3->get_falselist(), $6->get_nextlist()));
 	}
 	| 
-	IF LPAREN expression RPAREN statement ELSE statement
+	IF LPAREN expression RPAREN marker1 statement ELSE marker2 marker1 statement
 	{
-		ParseTreeNode* if_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("IF : if");
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RPAREN : )");
-		ParseTreeNode* else_node = (new ParseTreeNode())->set_first_line(@6.first_line)->set_last_line(@6.last_line)->set_rule("ELSE : else");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : IF LPAREN expression RPAREN statement ELSE statement");
-		$$->add_child(if_node)->add_child(lparen_node)->add_child($3)->add_child(rparen_node)->add_child($5)->add_child(else_node)->add_child($7);
+		$$ = new SymbolInfo();
+		backpatch($3->get_truelist(), $5->get_lexeme());
+		backpatch($3->get_falselist(), $9->get_lexeme());
+		$$->set_nextlist(merge(merge($6->get_nextlist(), $8->get_nextlist()), $10->get_nextlist()));
 	}
 	| 
-	WHILE LPAREN expression RPAREN statement
+	WHILE marker1 LPAREN expression
 	{
-		ParseTreeNode* while_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("WHILE : while");
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RPAREN : )");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : WHILE LPAREN expression RPAREN statement");
-		$$->add_child(while_node)->add_child(lparen_node)->add_child($3)->add_child(rparen_node)->add_child($5);
+		if(!($4->has_jump()))
+		{
+			gen_pop("AX", get_lineno_comment(@2.first_line));
+			gen_cmp("AX", "0", get_lineno_comment(@2.first_line));
+			gen_code("JNE");
+			$4->add_to_truelist(code_segment_lineno);
+			gen_code("JMP");
+			$4->add_to_falselist(code_segment_lineno);
+		}
+	} 
+	RPAREN marker1 statement
+	{
+		backpatch($8->get_nextlist(), $2->get_lexeme());
+		backpatch($4->get_truelist(), $7->get_lexeme());
+		$$ = (new SymbolInfo())->set_nextlist($4->get_falselist());
+		gen_code("JMP " + $2->get_lexeme(), get_lineno_comment(@1.first_line));
 	}
 	| 
 	PRINTLN LPAREN ID RPAREN SEMICOLON
 	{
-		ParseTreeNode* println_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("PRINTLN : println");
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("ID : " + $3->get_lexeme());
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@4.first_line)->set_last_line(@4.last_line)->set_rule("RPAREN : )");
-		ParseTreeNode* semicolon_node = (new ParseTreeNode())->set_first_line(@5.first_line)->set_last_line(@5.last_line)->set_rule("SEMICOLON : ;");
+		$$ = new SymbolInfo();
 
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : PRINTLN LPAREN ID RPAREN SEMICOLON");
-		$$->add_child(println_node)->add_child(lparen_node)->add_child(id_node)->add_child(rparen_node)->add_child(semicolon_node);
+		SymbolInfo* var_info = (SymbolInfo*) symbol_table.lookup($3->get_lexeme());
 
-		VarInfo* var_info = (VarInfo*) symbol_table.lookup($3->get_lexeme());
-		code_segment_file << gen_mov("DX",var_info->get_address(), get_lineno_comment(@1.first_line));
-		code_segment_file << gen_call("PRINTLN_INT", get_lineno_comment(@1.first_line));
+		gen_mov("DX",var_info->get_address(), get_lineno_comment(@1.first_line));
+		gen_call("PRINTLN_INT", get_lineno_comment(@1.first_line));
 	}
 	| 
 	RETURN expression SEMICOLON
 	{
-		ParseTreeNode* return_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("RETURN : return");
-		ParseTreeNode* semicolon_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("SEMICOLON : ;");
+		$$ = new SymbolInfo();
+		if($2->has_jump())
+		{
+			string label1 = get_newlabel();
+			string label2 = get_newlabel();
+			string label3 = get_newlabel();
 
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("statement : RETURN expression SEMICOLON");
-		$$->add_child(return_node)->add_child($2)->add_child(semicolon_node);
+			backpatch($2->get_truelist(), label1);
+			backpatch($2->get_falselist(), label2);
+			$2->set_truelist(vector<int>());
+			$2->set_falselist(vector<int>());
 
-		code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
+			gen_label(label1, get_lineno_comment(@2.first_line));
+			gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+			gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+			gen_label(label2, get_lineno_comment(@2.first_line));
+			gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+			gen_label(label3, get_lineno_comment(@2.first_line));
+		}
+		else 
+		{
+			gen_pop("AX", get_lineno_comment(@2.first_line));
+		}
+
+		if(symbol_table.get_current_scope()->get_current_offset() - current_func_base_offset > 0)
+		{
+			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - current_func_base_offset);
+		}
+		gen_func_ending_code(is_main_func, func_params.size());
+		is_global_scope = true;
 	}
 	;
-	  
+marker2 : 
+	{
+		gen_code("JMP");
+		$$ = (new SymbolInfo())->add_to_nextlist(code_segment_lineno);
+	}
+	;
 expression_statement : 
 	SEMICOLON
 	{
-		ParseTreeNode* semicolon_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("SEMICOLON : ;");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("expression_statement : SEMICOLON");
-		$$->add_child(semicolon_node);
 	}			
 	| 
 	expression SEMICOLON 
 	{
-		ParseTreeNode* semicolon_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("SEMICOLON : ;");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("expression_statement : expression SEMICOLON");
-		$$->add_child($1)->add_child(semicolon_node);
+		if(!($1->has_jump()))
+		{
+			gen_pop("AX", get_lineno_comment(@1.first_line));
+		}
 	}
 	;
 	  
 variable : 
 	ID
 	{
-		VarInfo* var_info = (VarInfo*) symbol_table.lookup($1->get_lexeme());
+		SymbolInfo* var_info = (SymbolInfo*) symbol_table.lookup($1->get_lexeme());
 		$$ = var_info;
 
 		//semantic error checking
@@ -785,7 +757,7 @@ variable :
 		{
 			if(!var_info->is_global())
 			{
-				code_segment_file<<gen_push(var_info->get_start_offset(), get_lineno_comment(@1.first_line));
+				gen_push(var_info->get_start_offset(), get_lineno_comment(@1.first_line));
 			}
 		}
 		else 
@@ -796,7 +768,7 @@ variable :
 	| 
 	ID LTHIRD expression RTHIRD 
 	{
-		VarInfo* var_info = (VarInfo*) symbol_table.lookup($1->get_lexeme());
+		SymbolInfo* var_info = (SymbolInfo*) symbol_table.lookup($1->get_lexeme());
 		$$ = var_info;
 
 		//semantic error checking
@@ -809,7 +781,7 @@ variable :
 		{
 			error_undeclared_variable(@1.first_line, $1->get_lexeme());
 		}
-		else if(symbol_info->get_type() == TokenType::SI_VAR_ID && ((VarInfo*)symbol_info)->get_array_size() == -1)
+		else if(symbol_info->get_type() == TokenType::SI_VAR_ID && ((SymbolInfo*)symbol_info)->get_array_size() == -1)
 		{
 			error_not_an_array(@1.first_line, $1->get_lexeme());
 		}
@@ -817,16 +789,16 @@ variable :
 		{
 			error_array_index_not_integer(@2.first_line);
 		}
-		else if(symbol_info->get_type() == TokenType::SI_VAR_ID && ((VarInfo*)symbol_info)->get_array_size() > -1)
+		else if(symbol_info->get_type() == TokenType::SI_VAR_ID && ((SymbolInfo*)symbol_info)->get_array_size() > -1)
 		{
-			code_segment_file << gen_pop("SI", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_code("SHL SI, 1", get_lineno_comment(@1.first_line));
+			gen_pop("SI", get_lineno_comment(@1.first_line));
+			gen_code("SHL SI, 1", get_lineno_comment(@1.first_line));
 			//assuming the offset is always negative
 			if(!var_info->is_global())
 			{
-				code_segment_file<<gen_sub("SI", abs(var_info->get_start_offset()), get_lineno_comment(@1.first_line));
+				gen_sub("SI", abs(var_info->get_start_offset()), get_lineno_comment(@1.first_line));
 			}
-			code_segment_file << gen_push("SI", get_lineno_comment(@1.first_line));
+			gen_push("SI", get_lineno_comment(@1.first_line));
 			
 		}
 	}
@@ -835,173 +807,226 @@ variable :
 expression : 
 	logic_expression	
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("expression : logic_expression");
-		$$->add_child($1);
+		$$ = $1;
+
 	}
 	| 
-	variable
+	variable ASSIGNOP logic_expression 	
 	{
-	}
-	ASSIGNOP logic_expression 	
-	{
-
-		ParseTreeNode* assignop_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("ASSIGNOP : =");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("expression : variable ASSIGNOP logic_expression");
-		$$->add_child(assignop_node)->add_child($4);
-
 		//semantic error checking
-		if($4->get_data_type() == DataType::VOID)
+		$$ = new SymbolInfo($1);
+		if($3->get_data_type() == DataType::VOID)
 		{
-			error_default(@3.first_line, "void cannot be assigned to a variable");
+			error_default(@2.first_line, "void cannot be assigned to a variable");
 		}
-		else if($4->get_data_type() == DataType::FLOAT && $1->get_data_type() == DataType::INT)
+		else if($3->get_data_type() == DataType::FLOAT && $1->get_data_type() == DataType::INT)
 		{
-			warning_data_loss(@1.first_line, DataType::FLOAT, DataType::INT);
+			warning_data_loss(@1.first_line);
 		}
 		else 
 		{
+			if($3->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
 
-			code_segment_file <<gen_pop("AX", get_lineno_comment(@3.first_line)); 
+				backpatch($3->get_truelist(), label1);
+				backpatch($3->get_falselist(), label2);
+				$3->set_truelist(vector<int>());
+				$3->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
+			}
+			else 
+			{
+				gen_pop("AX", get_lineno_comment(@2.first_line)); 
+			}
 			if($1->is_global())
 			{
 				if($1->get_array_size() < 0)
 				{
-					code_segment_file << gen_mov($1->get_lexeme(), "AX", get_lineno_comment(@3.first_line));
+					gen_mov($1->get_lexeme(), "AX", get_lineno_comment(@2.first_line));
 				}
 				else 
 				{
-					code_segment_file << gen_pop("SI", get_lineno_comment(@3.first_line));
-					code_segment_file << gen_mov($1->get_lexeme() + "[SI]", "AX", get_lineno_comment(@3.first_line));
+					gen_pop("SI", get_lineno_comment(@2.first_line));
+					gen_mov($1->get_lexeme() + "[SI]", "AX", get_lineno_comment(@2.first_line));
 				}
 			}
 			else 
 			{
-				code_segment_file << gen_pop("SI", get_lineno_comment(@1.first_line));
-				code_segment_file << gen_mov("[BP+SI]", "AX", get_lineno_comment(@1.first_line));
+				gen_pop("SI", get_lineno_comment(@1.first_line));
+				gen_mov("[BP+SI]", "AX", get_lineno_comment(@1.first_line));
 			}
+			gen_push("AX", get_lineno_comment(@2.first_line));
 		}
 	}
 	|
 	error
 	{
 		yyclearin;
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("expression : error");
+		$$ = new SymbolInfo();
 	}
 	;
 			
 logic_expression : 
 	rel_expression 	
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("logic_expression : rel_expression");
-		$$->add_child($1);
+		$$ = $1;
 	}
 	| 
-	rel_expression
+	rel_expression LOGICOP
 	{
+		if(!($1->has_jump()))
+		{
+			gen_pop("AX", get_lineno_comment(@2.first_line));
+			gen_cmp("AX", "0", get_lineno_comment(@2.first_line));
+			gen_code("JNE");
+			$1->add_to_truelist(code_segment_lineno);
+			gen_code("JMP");
+			$1->add_to_falselist(code_segment_lineno);
+		}
 	} 
-	LOGICOP rel_expression 	
+	marker1 rel_expression 	
 	{
-		ParseTreeNode* logicop_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("LOGICOP : "+$3->get_lexeme());
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("logic_expression : rel_expression LOGICOP rel_expression");
-		$$->add_child($1)->add_child(logicop_node)->add_child($4);
+		$$ = new SymbolInfo($1);
 
 		//semantic error checking
-		if($1->get_data_type() == DataType::VOID || $4->get_data_type() == DataType::VOID)
+		if($1->get_data_type() == DataType::VOID || $5->get_data_type() == DataType::VOID)
 		{
-			error_default(@3.first_line, "void cannot be used in logical expression");
+			error_default(@2.first_line, "void cannot be used in logical expression");
 		}
 		else 
 		{
-			code_segment_file <<gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-
-			string label = get_newlabel();
-			code_segment_file << gen_cmp("AX", "0", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_code("JE " + label, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_mov("AX", "1", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_label(label, get_lineno_comment(@1.first_line));
-
-			label = get_newlabel();
-			code_segment_file << gen_cmp("BX", "0", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_code("JE " + label, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_mov("BX", "1", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_label(label, get_lineno_comment(@1.first_line));
-
-			if($3->get_lexeme() == "&&")
+			if(!($5->has_jump()))
 			{
-				code_segment_file << gen_and("AX", "BX", get_lineno_comment(@3.first_line));
+				gen_pop("BX", get_lineno_comment(@2.first_line));
+				gen_cmp("BX", "0", get_lineno_comment(@2.first_line));
+				gen_code("JNE");
+				$5->add_to_truelist(code_segment_lineno);
+				gen_code("JMP");
+				$5->add_to_falselist(code_segment_lineno);
 			}
-			else if($3->get_lexeme() == "||")
+			if($2->get_lexeme() == "&&")
 			{
-				code_segment_file << gen_or("AX", "BX", get_lineno_comment(@3.first_line));
+				backpatch($1->get_truelist(), $4->get_lexeme());
+				$$->set_truelist($5->get_truelist());
+				$$->set_falselist(merge($1->get_falselist(), $5->get_falselist()));
 			}
-			code_segment_file << gen_push("AX", get_lineno_comment(@3.first_line));
+			else if($2->get_lexeme() == "||")
+			{
+				backpatch($1->get_falselist(), $4->get_lexeme());
+				$$->set_truelist(merge($1->get_truelist(), $5->get_truelist()));
+				$$->set_falselist($5->get_falselist());
+			}
 		}
+	}
+	;
+
+marker1 : 
+	{
+		$$ = (new SymbolInfo())->set_lexeme(get_newlabel());
+		gen_label($$->get_lexeme());
 	}
 	;
 			
 rel_expression	: 
 	simple_expression 
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("rel_expression : simple_expression");
-		$$->add_child($1);
+		$$ = $1;
 	}
 	| 
-	simple_expression
+	simple_expression RELOP simple_expression	
 	{
-	} 
-	RELOP simple_expression	
-	{
-		ParseTreeNode* relop_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("RELOP : "+$3->get_lexeme());
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("rel_expression : simple_expression RELOP simple_expression");
-		$$->add_child($1)->add_child(relop_node)->add_child($4);
+		$$ = new SymbolInfo($1);
 
 		//semantic error checking
-		if($1->get_data_type() == DataType::VOID || $4->get_data_type() == DataType::VOID)
+		if($1->get_data_type() == DataType::VOID || $3->get_data_type() == DataType::VOID)
 		{
 			error_default(@2.first_line, "cannot use relational operator on void type");
 		}
 		else 
 		{
-			string label1 = get_newlabel();
-			string label2 = get_newlabel();
+			if($3->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
 
-			code_segment_file<<gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file<<gen_cmp("AX", "BX", get_lineno_comment(@3.first_line));
-			if($3->get_lexeme() == "<")
-			{
-				code_segment_file<<gen_code("JL " + label1, get_lineno_comment(@3.first_line));
+				backpatch($3->get_truelist(), label1);
+				backpatch($3->get_falselist(), label2);
+				$3->set_truelist(vector<int>());
+				$3->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
 			}
-			else if($3->get_lexeme() == ">")
+			else 
 			{
-				code_segment_file<<gen_code("JG " + label1, get_lineno_comment(@3.first_line));
+				gen_pop("BX", get_lineno_comment(@2.first_line));
 			}
-			else if($3->get_lexeme() == "<=")
+
+			if($1->has_jump())
 			{
-				code_segment_file<<gen_code("JLE " + label1, get_lineno_comment(@3.first_line));
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
+
+				backpatch($1->get_truelist(), label1);
+				backpatch($1->get_falselist(), label2);
+				$1->set_truelist(vector<int>());
+				$1->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
 			}
-			else if($3->get_lexeme() == ">=")
+			else 
 			{
-				code_segment_file<<gen_code("JGE " + label1, get_lineno_comment(@3.first_line));
+				gen_pop("AX", get_lineno_comment(@2.first_line));
 			}
-			else if($3->get_lexeme() == "==")
-			{
-				code_segment_file<<gen_code("JE " + label1, get_lineno_comment(@3.first_line));
-			}
-			else if($3->get_lexeme() == "!=")
-			{
-				code_segment_file<<gen_code("JNE " + label1, get_lineno_comment(@3.first_line));
-			}
-			code_segment_file<<gen_push("0", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_code("JMP " + label2, get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_label(label1, get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_push("1", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_label(label2, get_lineno_comment(@3.first_line));
 		
+			gen_cmp("AX", "BX", get_lineno_comment(@2.first_line));
+			if($2->get_lexeme() == "<")
+			{
+				gen_code("JL");
+			}
+			else if($2->get_lexeme() == ">")
+			{
+				gen_code("JG");
+			}
+			else if($2->get_lexeme() == "<=")
+			{
+				gen_code("JLE");
+			}
+			else if($2->get_lexeme() == ">=")
+			{
+				gen_code("JGE");
+			}
+			else if($2->get_lexeme() == "==")
+			{
+				gen_code("JE");
+			}
+			else if($2->get_lexeme() == "!=")
+			{
+				gen_code("JNE");
+			}
+			$$->add_to_truelist(code_segment_lineno);
+			gen_code("JMP");
+			$$->add_to_falselist(code_segment_lineno);
 		}
 	}
 	;
@@ -1009,90 +1034,162 @@ rel_expression	:
 simple_expression : 
 	term
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("simple_expression : term");
-		$$->add_child($1);
+		$$ = $1;
 	} 
-	| simple_expression
+	| simple_expression ADDOP term 
 	{
-	} 
-	ADDOP term 
-	{
-		ParseTreeNode* add_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("ADDOP : +");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("simple_expression : simple_expression ADDOP term");
-		$$->add_child($1)->add_child(add_node)->add_child($4);
-
+		$$ = new SymbolInfo($1);
 		//semantic error checking
-		if($1->get_data_type() == DataType::VOID || $4->get_data_type() == DataType::VOID)
+		if($1->get_data_type() == DataType::VOID || $3->get_data_type() == DataType::VOID)
 		{
 			error_default(@2.first_line, "cannot use arithmetic operator on void type");
 		}
-		else if($3->get_lexeme() == "+")
+		else
 		{
-			code_segment_file << gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_add("AX", "BX", get_lineno_comment(@3.first_line));
-			code_segment_file << gen_push("AX", get_lineno_comment(@3.first_line));
+			if($3->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
+
+				backpatch($3->get_truelist(), label1);
+				backpatch($3->get_falselist(), label2);
+				$3->set_truelist(vector<int>());
+				$3->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
+			}
+			else 
+			{
+				gen_pop("BX", get_lineno_comment(@2.first_line));
+			}
+
+			if($1->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
+
+				backpatch($1->get_truelist(), label1);
+				backpatch($1->get_falselist(), label2);
+				$1->set_truelist(vector<int>());
+				$1->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
+			}
+			else 
+			{
+				gen_pop("AX", get_lineno_comment(@2.first_line));
+			}
+
+			if($2->get_lexeme() == "+")
+			{
+				gen_add("AX", "BX", get_lineno_comment(@2.first_line));
+				gen_push("AX", get_lineno_comment(@2.first_line));
+			}
+			else if($2->get_lexeme() == "-")
+			{
+				gen_sub("AX", "BX", get_lineno_comment(@2.first_line));
+				gen_push("AX", get_lineno_comment(@2.first_line));
+			}
 		}
-		else if($3->get_lexeme() == "-")
-		{
-			code_segment_file << gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_sub("AX", "BX", get_lineno_comment(@3.first_line));
-			code_segment_file << gen_push("AX", get_lineno_comment(@3.first_line));
-		}
-		
 	}
 	;
 					
 term :	
 	unary_expression
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("term : unary_expression");
-		$$->add_child($1);
+		$$ = $1;
 	}
     |  
-	term
+	term MULOP unary_expression
 	{
-	} 
-	MULOP unary_expression
-	{
-		ParseTreeNode* mul_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("MULOP : *");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("term : term MULOP unary_expression");
-		$$->add_child($1)->add_child(mul_node)->add_child($4);
-
+		$$ = new SymbolInfo($1);
 		//semantic error checking
-		if($1->get_data_type() == DataType::VOID || $4->get_data_type() == DataType::VOID)
+		if($1->get_data_type() == DataType::VOID || $3->get_data_type() == DataType::VOID)
 		{
 			error_default(@2.first_line, "Cannot use arithmetic operator on void type");
 		}
-		else if(($3->get_lexeme() == "%") && ($1->get_data_type() != DataType::INT || $4->get_data_type() != DataType::INT))
+		else if(($2->get_lexeme() == "%") && ($1->get_data_type() != DataType::INT || $3->get_data_type() != DataType::INT))
 		{
 			error_nonint_mod_op(@2.first_line);
 		}
-		else if($3->get_lexeme() == "*")
+		else
 		{
-			code_segment_file<<gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file<<gen_imul("BX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_push("AX", get_lineno_comment(@3.first_line));
-		}
-		else if($3->get_lexeme() == "/")
-		{
-			code_segment_file<<gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file<<gen_xor("DX", "DX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_idiv("BX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_push("AX", get_lineno_comment(@3.first_line));
-		}
-		else if($3->get_lexeme() == "%")
-		{
-			code_segment_file<<gen_pop("BX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file<<gen_xor("DX", "DX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_idiv("BX", get_lineno_comment(@3.first_line));
-			code_segment_file<<gen_push("DX", get_lineno_comment(@3.first_line));
+			if($3->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
+
+				backpatch($3->get_truelist(), label1);
+				backpatch($3->get_falselist(), label2);
+				$3->set_truelist(vector<int>());
+				$3->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
+			}
+			else 
+			{
+				gen_pop("BX", get_lineno_comment(@2.first_line));
+			}
+
+			if($1->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
+
+				backpatch($1->get_truelist(), label1);
+				backpatch($1->get_falselist(), label2);
+				$1->set_truelist(vector<int>());
+				$1->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
+				gen_label(label2, get_lineno_comment(@2.first_line));
+				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+				gen_label(label3, get_lineno_comment(@2.first_line));
+			}
+			else 
+			{
+				gen_pop("AX", get_lineno_comment(@1.first_line));
+			}
+
+			if($2->get_lexeme() == "*")
+			{
+				gen_imul("BX", get_lineno_comment(@2.first_line));
+				gen_push("AX", get_lineno_comment(@2.first_line));
+			}
+			else if($2->get_lexeme() == "/")
+			{
+				gen_xor("DX", "DX", get_lineno_comment(@2.first_line));
+				gen_idiv("BX", get_lineno_comment(@2.first_line));
+				gen_push("AX", get_lineno_comment(@2.first_line));
+			}
+			else if($2->get_lexeme() == "%")
+			{
+				gen_xor("DX", "DX", get_lineno_comment(@2.first_line));
+				gen_idiv("BX", get_lineno_comment(@2.first_line));
+				gen_push("DX", get_lineno_comment(@2.first_line));
+			}
+
 		}
 	}
     ;
@@ -1100,96 +1197,89 @@ term :
 unary_expression : 
 	ADDOP unary_expression 
 	{
-		ParseTreeNode* add_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("ADDOP : +");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($2->get_data_type())->set_rule("unary_expression : ADDOP unary_expression");
-		$$->add_child(add_node)->add_child($2);
-
+		$$ = new SymbolInfo($2);
 		if($2->get_data_type() == DataType::VOID)
 		{
 			error_default(@1.first_line, "Cannot use unary operator on void type");
 		}
 		else if($1->get_lexeme() == "-")
 		{
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_neg("AX", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_push("AX", get_lineno_comment(@1.first_line));
+			if($$->has_jump())
+			{
+				string label1 = get_newlabel();
+				string label2 = get_newlabel();
+				string label3 = get_newlabel();
+
+				backpatch($$->get_truelist(), label1);
+				backpatch($$->get_falselist(), label2);
+				$$->set_truelist(vector<int>());
+				$$->set_falselist(vector<int>());
+
+				gen_label(label1, get_lineno_comment(@1.first_line));
+				gen_mov("AX", 1, get_lineno_comment(@1.first_line));
+				gen_code("JMP " + label3, get_lineno_comment(@1.first_line));
+				gen_label(label2, get_lineno_comment(@1.first_line));
+				gen_mov("AX", 0, get_lineno_comment(@1.first_line));
+				gen_label(label3, get_lineno_comment(@1.first_line));
+			}
+			else 
+			{
+				gen_pop("AX", get_lineno_comment(@1.first_line));
+			}
+			gen_neg("AX", get_lineno_comment(@1.first_line));
+			gen_push("AX", get_lineno_comment(@1.first_line));
 		}
 	} 
 	| 
 	NOT unary_expression 
 	{
-		ParseTreeNode* not_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("NOT : !");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($2->get_data_type())->set_rule("unary_expression : NOT unary_expression");
-		$$->add_child(not_node)->add_child($2);
-
+		$$ = new SymbolInfo($2);
 		if($2->get_data_type() == DataType::VOID)
 		{
 			error_default(@1.first_line, "Cannot use unary operator on void type");
 		}
 		else 
 		{
-			string label1 = get_newlabel();
-			string label2 = get_newlabel();
-
-			code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_cmp("AX", 0, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_code("JE " + label1, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_push(0, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_code("JMP " + label2, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_label(label1, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_push(1, get_lineno_comment(@1.first_line));
-			code_segment_file << gen_label(label2, get_lineno_comment(@1.first_line));
+			$$->set_truelist($2->get_falselist());
+			$$->set_falselist($2->get_truelist());
 		}
 	}
 	|
 	factor 
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("unary_expression : factor");
-		$$->add_child($1);
+		$$ = $1;
 	}
 	;
 	
 factor	: 
 	variable
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("factor : variable");
-
+		$$ = new SymbolInfo($1);
 		if($1->is_global())
 		{
 			if($1->get_array_size() < 0)
 			{
-				code_segment_file<<gen_push($1->get_lexeme(), get_lineno_comment(@1.first_line));
+				gen_push($1->get_lexeme(), get_lineno_comment(@1.first_line));
 			}
 			else 
 			{
-				code_segment_file<<gen_pop("SI", get_lineno_comment(@1.first_line));
-				code_segment_file<<gen_push($1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
+				gen_pop("SI", get_lineno_comment(@1.first_line));
+				gen_push($1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
 			}
 		}
 		else 
 		{
-			code_segment_file << gen_pop("SI", get_lineno_comment(@1.first_line));
-			code_segment_file << gen_push("[BP+SI]", get_lineno_comment(@1.first_line));
+			gen_pop("SI", get_lineno_comment(@1.first_line));
+			gen_push("[BP+SI]", get_lineno_comment(@1.first_line));
 		}	
 	}
 	| 
-	ID LPAREN
+	ID LPAREN argument_list RPAREN
 	{
-
-	} 
-	argument_list RPAREN
-	{
-		ParseTreeNode* id_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("ID : "+$1->get_lexeme());
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@5.first_line)->set_last_line(@5.last_line)->set_rule("RPAREN : )");
-		
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type(DataType::NULL_TYPE)->set_rule("factor : ID LPAREN argument_list RPAREN");
-		$$->add_child(id_node)->add_child(lparen_node)->add_child($4)->add_child(rparen_node);
-
 		//semantic error checking
 		SymbolInfo* symbol_info = symbol_table.lookup($1->get_lexeme());
+		$$ = new SymbolInfo(symbol_info);
+
 		if(symbol_info == NULL_SYMBOL_INFO)
 		{
 			error_undeclared_function(@1.first_line, $1->get_lexeme());
@@ -1201,7 +1291,7 @@ factor	:
 		else if((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID) || (symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID))
 		{
 			bool no_mismatch = true;
-			FuncInfo* func_info = (FuncInfo*)symbol_info;
+			SymbolInfo* func_info = (SymbolInfo*)symbol_info;
 			int param_size = func_info->get_param_types().size();
 			int arg_size = func_arg_types.size();
 
@@ -1230,8 +1320,8 @@ factor	:
 			if(no_mismatch)
 			{
 				$$->set_data_type(func_info->get_return_type());
-				code_segment_file << gen_call($1->get_lexeme());
-				code_segment_file << gen_push("AX", get_lineno_comment(@1.first_line)); // push return value
+				gen_call($1->get_lexeme());
+				gen_push("AX", get_lineno_comment(@1.first_line)); // push return value
 			}
 		}
 		func_arg_types.clear();
@@ -1239,84 +1329,91 @@ factor	:
 	| 
 	LPAREN expression RPAREN
 	{
-		ParseTreeNode* lparen_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_rule("LPAREN : (");
-		ParseTreeNode* rparen_node = (new ParseTreeNode())->set_first_line(@3.first_line)->set_last_line(@3.last_line)->set_rule("RPAREN : )");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($2->get_data_type())->set_data_type($2->get_data_type())->set_rule("factor : LPAREN expression RPAREN");
-		$$->add_child(lparen_node)->add_child($2)->add_child(rparen_node);
+		$$ = new SymbolInfo($2);
 	}
 	| 
 	CONST_INT 
 	{
-		ParseTreeNode* const_int_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_data_type(DataType::INT)->set_rule("CONST_INT : "+$1->get_lexeme());
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type(DataType::INT)->set_rule("factor : CONST_INT");
-		$$->add_child(const_int_node);
-
-		code_segment_file << gen_push(stoi($1->get_lexeme()), get_lineno_comment(@1.first_line));
+		$1->set_data_type(DataType::INT);
+		$$ = $1;
+		gen_push(stoi($1->get_lexeme()), get_lineno_comment(@1.first_line));
 	}
 	| 
 	CONST_FLOAT
 	{
-		ParseTreeNode* const_float_node = (new ParseTreeNode())->set_first_line(@1.first_line)->set_last_line(@1.last_line)->set_data_type(DataType::FLOAT)->set_rule("CONST_FLOAT : "+$1->get_lexeme());
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type(DataType::FLOAT)->set_rule("factor : CONST_FLOAT");
-		$$->add_child(const_float_node);
+		$1->set_data_type(DataType::FLOAT);
+		$$ = $1;
 	}
 	| 
 	variable INCOP 
 	{
-
-		ParseTreeNode* incop_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("INCOP : ++");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("factor : variable INCOP");
-		$$->add_child(incop_node);
-		
-		code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-		code_segment_file << gen_add("AX", 1, get_lineno_comment(@1.first_line));
-		code_segment_file << gen_push("AX", get_lineno_comment(@1.first_line));
+		$$ = new SymbolInfo($1);
+		if($1->is_global())
+		{
+			if($1->get_array_size() < 0)
+			{
+				gen_push($1->get_lexeme(), get_lineno_comment(@1.first_line));
+				gen_code("INC W. " + $1->get_lexeme(), get_lineno_comment(@1.first_line));
+			}
+			else 
+			{
+				gen_pop("SI", get_lineno_comment(@1.first_line));
+				gen_push($1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
+				gen_code( "INC W. " + $1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
+			}
+		}
+		else 
+		{
+			gen_pop("SI", get_lineno_comment(@1.first_line));
+			gen_push("[BP+SI]", get_lineno_comment(@1.first_line));
+			gen_code("INC W. [BP+SI]", get_lineno_comment(@1.first_line));
+		}	
 	}
 	| 
 	variable DECOP
 	{
-		ParseTreeNode* decop_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("DECOP : --");
+		$$ = new SymbolInfo($1);
+		if($1->is_global())
+		{
+			if($1->get_array_size() < 0)
+			{
+				gen_push($1->get_lexeme(), get_lineno_comment(@1.first_line));
+				gen_code("DEC W. " + $1->get_lexeme(), get_lineno_comment(@1.first_line));
+			}
+			else 
+			{
+				gen_pop("SI", get_lineno_comment(@1.first_line));
+				gen_push($1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
+				gen_code("DEC W. " + $1->get_lexeme()+"[SI]", get_lineno_comment(@1.first_line));
+			}
+		}
+		else 
+		{
+			gen_pop("SI", get_lineno_comment(@1.first_line));
+			gen_push("[BP+SI]", get_lineno_comment(@1.first_line));
+			gen_code("DEC W. [BP+SI]", get_lineno_comment(@1.first_line));
+		}	
 
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_data_type($1->get_data_type())->set_rule("factor : variable DECOP");
-		$$->add_child(decop_node);
-		code_segment_file << gen_pop("AX", get_lineno_comment(@1.first_line));
-		code_segment_file << gen_sub("AX", 1, get_lineno_comment(@1.first_line));
-		code_segment_file << gen_push("AX", get_lineno_comment(@1.first_line));
 	}
 	;
 	
 argument_list : 
 	arguments
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("argument_list : arguments");
-		$$->add_child($1);
 	}
 	|
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("argument_list : ");
 	}
 	;
 	
 arguments : 
 	arguments COMMA logic_expression
 	{
-		ParseTreeNode* comma_node = (new ParseTreeNode())->set_first_line(@2.first_line)->set_last_line(@2.last_line)->set_rule("COMMA : ,");
-
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("arguments : arguments COMMA logic_expression");
-		$$->add_child($1)->add_child(comma_node)->add_child($3);
-
 		func_arg_types.push_back($3->get_data_type());
 	}
 	| 
 	logic_expression
 	{
-		$$ = (new ParseTreeNode())->set_first_line(@$.first_line)->set_last_line(@$.last_line)->set_rule("arguments : logic_expression");
-		$$->add_child($1);
-
 		func_arg_types.push_back($1->get_data_type());
 	}
 	;
@@ -1349,13 +1446,11 @@ int main(int argc, char const *argv[])
 	}
 	
 	input_file_name = argv[1];
-	parsetree_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_parsetree.txt";
 	error_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_error.txt";
 	asmcode_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_asmcode.asm";
 	code_segment_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_code_segment.asm";
-	parsetree_file.open(parsetree_file_name);
-	error_file.open(error_file_name);
 
+	error_file.open(error_file_name);
   	yyscan_t scanner_context;
 	yylex_init( &scanner_context);
 	yyset_in(input_file,scanner_context);
@@ -1364,6 +1459,6 @@ int main(int argc, char const *argv[])
 
 	fclose(input_file);
 	error_file.close();
-	parsetree_file.close();
+
   	return 0;
 }

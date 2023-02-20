@@ -1,11 +1,5 @@
 #include "ParseTree.hpp"
 
-map<DataType, string> data_type_to_string = {
-    {DataType::INT, "int"},
-    {DataType::FLOAT, "float"},
-    {DataType::VOID, "void"},
-    {DataType::NULL_TYPE, "null"}};
-
 ParseTreeNode::ParseTreeNode() : first_line(-1), last_line(-1), data_type(DataType::NULL_TYPE), rule("")
 {
     this->children = vector<ParseTreeNode *>();

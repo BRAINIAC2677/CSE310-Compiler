@@ -74,13 +74,13 @@ bool ScopeTable::insert(SymbolInfo *symbol_info) noexcept
 
         if (symbol_info->get_type() == TokenType::SI_VAR_ID)
         {
-            VarInfo *var_info = (VarInfo *)symbol_info;
-            new_symbol_info = (new VarInfo())->set_lexeme(var_info->get_lexeme())->set_type(var_info->get_type())->set_data_type(var_info->get_data_type())->set_array_size(var_info->get_array_size())->set_start_offset(var_info->get_start_offset())->set_global(var_info->is_global());
+            SymbolInfo *var_info = (SymbolInfo *)symbol_info;
+            new_symbol_info = (new SymbolInfo())->set_lexeme(var_info->get_lexeme())->set_type(var_info->get_type())->set_data_type(var_info->get_data_type())->set_array_size(var_info->get_array_size())->set_start_offset(var_info->get_start_offset())->set_global(var_info->is_global());
         }
         else if ((symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID) || (symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID))
         {
-            FuncInfo *func_info = (FuncInfo *)symbol_info;
-            new_symbol_info = (new FuncInfo())->set_lexeme(func_info->get_lexeme())->set_type(func_info->get_type())->set_return_type(func_info->get_return_type())->set_param_types(func_info->get_param_types());
+            SymbolInfo *func_info = (SymbolInfo *)symbol_info;
+            new_symbol_info = (new SymbolInfo())->set_lexeme(func_info->get_lexeme())->set_type(func_info->get_type())->set_return_type(func_info->get_return_type())->set_param_types(func_info->get_param_types());
         }
 
         auto hashed_index = SDBMHash(new_symbol_info->get_lexeme());
@@ -178,12 +178,12 @@ ostream &operator<<(ostream &out, ScopeTable &scope_table) noexcept
         {
             if (current_symbol_info->get_type() == TokenType::SI_VAR_ID)
             {
-                VarInfo *var_info = (VarInfo *)current_symbol_info;
+                SymbolInfo *var_info = (SymbolInfo *)current_symbol_info;
                 out << "<" << current_symbol_info->get_lexeme() << ", " << data_type_to_string[var_info->get_data_type()] << "> ";
             }
             else if ((current_symbol_info->get_type() == TokenType::SI_FUNC_DECL_ID) || (current_symbol_info->get_type() == TokenType::SI_FUNC_DEF_ID))
             {
-                FuncInfo *func_info = (FuncInfo *)current_symbol_info;
+                SymbolInfo *func_info = (SymbolInfo *)current_symbol_info;
                 out << "<" << current_symbol_info->get_lexeme() << ", FUNCTION, " << data_type_to_string[func_info->get_return_type()] << "> ";
             }
             else
