@@ -1,17 +1,31 @@
-int a[10];
-
-int main()
-{
-	int c;
-	c = 2;
-	if (c - 2 != 0)
-	{
-		println(c);
+int main(){
+ 
+	int i,j,k,ll;
+ 
+	for(i=0;i<6;i++){
+		println(i);
 	}
-	else
-	{
-		c = 3;
-		println(c);
+ 
+	k = 4;
+	ll = 6;
+	while(k>0){
+		ll = ll + 3;
+		k--;
 	}
+ 
+	println(ll);
+	println(k);
+	
+	k = 4;
+	ll = 6;
+	
+	while(k--){
+		ll = ll + 3;
+	}
+ 
+	println(ll);
+	println(k);
+ 
+ 
 	return 0;
 }

@@ -19,6 +19,7 @@ void gen_starting_code()
 \n\
 CR EQU 0DH\n\
 LF EQU 0AH\n\
+number DB '00000$'\n\
 NEWLINE DB CR, LF, '$'\n";
     asmcode_file << code;
 }
@@ -27,197 +28,67 @@ string gen_newline()
 {
     string code = "\n\
 PRINT_NEWLINE PROC\n\
-    \n\
     PUSH AX\n\
     PUSH DX\n\
-    \n\
     LEA DX, NEWLINE\n\
     MOV AH, 9\n\
     INT 21H\n\
-    \n\
     POP DX\n\
     POP AX\n\
-    \n\
     RET\n\
 PRINT_NEWLINE ENDP\n";
     return code;
 }
 
-string gen_2scomp()
-{
-    string code = "\n\
-2SCOMP PROC\n\
-    ; WILL CALC 2S COMPLEMENT OF DX AND STORE IN DX\n\
-    \n\ 
-    PUSH AX\n\
-    \n\ 
-    MOV AX, 0FFFFH  ; NOT\n\
-    SUB AX, DX\n\
-    ADD AX, 01H\n\
-    MOV DX, AX\n\
-    \n\
-    POP AX\n\
-    \n\
-    RET\n\
-2SCOMP ENDP\n";
-    return code;
-}
-
-string gen_print()
-{
-    string code = "\n\
-PRINT_INT PROC\n\
-    ; PRINT SIGNED INTEGER FROM DX REG\n\
-    \n\
-    PUSH AX\n\
-    PUSH BX\n\
-    PUSH CX\n\
-    PUSH DX\n\
-    \n\ 
-    ; CX WILL COUNT THE NUMBER OF DIGITS\n\
-    XOR CX, CX\n\
-    \n\ 
-    ; IF DX NEGATIVE: 1|PRINT '-', 2|2S COMPLEMENT  DX\n\
-    TEST DX, 08000H\n\
-    JE PRINT_INT_LOOP_1\n\
-    MOV BX, DX\n\
-    MOV DL, '-'\n\
-    MOV AH, 2\n\
-    INT 21H\n\
-    MOV DX, BX\n\
-    CALL 2SCOMP\n\    
-    \n\
-    \n\
-    PRINT_INT_LOOP_1:\n\    
-        ; EXTRACTING AND STACKING DIGITS\n\
-        \n\
-        CMP DX, 0H\n\
-        JE PRINT_INT_END_LOOP_1\n\
-        \n\
-        ; DX = DX/10, EXTRACT DX%10\n\
-        MOV AX, DX\n\
-        MOV BL, 10D\n\
-        XOR BH, BH\n\
-        XOR DX, DX      ; CLEARING DX\n\ 
-        DIV BX\n\          
-        ADD DX, 30H     ; DIGIT TO ASCII\n\  
-        PUSH DX\n\
-        ADD CX, 1\n\
-        MOV DX, AX\n\      
-        JMP PRINT_INT_LOOP_1\n\           
-    PRINT_INT_END_LOOP_1:\n\
-    \n\
-    CMP CX, 0\n\
-    JNE PRINTLN_INT_LOOP_2\n\
-    MOV DX, 30H\n\
-    MOV AH, 2\n\
-    INT 21H\n\
-    \n\
-    PRINT_INT_LOOP_2:\n\
-        ; UNSTACKING AND PRINTING DIGITS\n\
-        \n\    
-        CMP CX, 0H\n\
-        JE PRINT_INT_END_LOOP_2\n\
-        \n\
-        POP DX\n\
-        MOV AH, 2\n\
-        INT 21H\n\
-        \n\
-        SUB CX, 1\n\
-        JMP PRINT_INT_LOOP_2\n\    
-    PRINT_INT_END_LOOP_2:\n\
-    \n\
-    \n\
-    POP DX\n\
-    POP CX\n\
-    POP BX\n\
-    POP AX\n\
-    \n\
-    RET\n\
-PRINT_INT ENDP\n";
-    return code;
-}
-
 string gen_println()
 {
-    string code = "\n\
-PRINTLN_INT PROC\n\
-    ; PRINT SIGNED INTEGER FROM DX REG\n\
-    \n\
+    string code = "\
+PRINTLN_INT PROC  ;print what is in ax\n\
     PUSH AX\n\
     PUSH BX\n\
     PUSH CX\n\
     PUSH DX\n\
-    \n\ 
-    ; CX WILL COUNT THE NUMBER OF DIGITS\n\
-    XOR CX, CX\n\
-    \n\ 
-    ; IF DX NEGATIVE: 1|PRINT '-', 2|2S COMPLEMENT  DX\n\
-    TEST DX, 08000H\n\
-    JE PRINTLN_INT_LOOP_1\n\
-    MOV BX, DX\n\
-    MOV DL, '-'\n\
-    MOV AH, 2\n\
+    PUSH SI\n\
+    LEA SI,NUMBER\n\
+    MOV BX,10\n\
+    ADD SI,4\n\
+    CMP AX,0\n\
+    JNGE NEGATE\n\
+    PRINT:\n\
+    XOR DX,DX\n\
+    DIV BX\n\
+    MOV [SI],DL\n\
+    ADD [SI],'0'\n\
+    DEC SI\n\
+    CMP AX,0\n\
+    JNE PRINT\n\
+    INC SI\n\
+    LEA DX,SI\n\
+    MOV AH,9\n\
     INT 21H\n\
-    MOV DX, BX\n\
-    CALL 2SCOMP\n\    
-    \n\
-    \n\
-    PRINTLN_INT_LOOP_1:\n\    
-        ; EXTRACTING AND STACKING DIGITS\n\
-        \n\
-        CMP DX, 0H\n\
-        JE PRINTLN_INT_END_LOOP_1\n\
-        \n\
-        ; DX = DX/10, EXTRACT DX%10\n\
-        MOV AX, DX\n\
-        MOV BL, 10D\n\
-        XOR BH, BH\n\
-        XOR DX, DX      ; CLEARING DX\n\ 
-        DIV BX\n\          
-        ADD DX, 30H     ; DIGIT TO ASCII\n\  
-        PUSH DX\n\
-        ADD CX, 1\n\
-        MOV DX, AX\n\      
-        JMP PRINTLN_INT_LOOP_1\n\           
-    PRINTLN_INT_END_LOOP_1:\n\
-    \n\
-    CMP CX, 0\n\
-    JNE PRINTLN_INT_LOOP_2\n\
-    MOV DX, 30H\n\
-    MOV AH, 2\n\
-    INT 21H\n\
-    \n\
-    PRINTLN_INT_LOOP_2:\n\
-        ; UNSTACKING AND PRINTING DIGITS\n\
-        \n\    
-        CMP CX, 0H\n\
-        JE PRINTLN_INT_END_LOOP_2\n\
-        \n\
-        POP DX\n\
-        MOV AH, 2\n\
-        INT 21H\n\
-        \n\
-        SUB CX, 1\n\
-        JMP PRINTLN_INT_LOOP_2\n\    
-    PRINTLN_INT_END_LOOP_2:\n\
     CALL PRINT_NEWLINE\n\
-    \n\
-    \n\
+    POP SI\n\
     POP DX\n\
     POP CX\n\
     POP BX\n\
     POP AX\n\
-    \n\
     RET\n\
-PRINTLN_INT ENDP\n";
+    NEGATE:\n\
+    PUSH AX\n\
+    MOV AH,2\n\
+    MOV DL,'-'\n\
+    INT 21H\n\
+    POP AX\n\
+    NEG AX\n\
+    JMP PRINT\n\
+PRINTLN_INT ENDP\n\n";
 
     return code;
 }
 
 void gen_ending_code()
 {
-    string code = gen_2scomp() + "\n" + gen_newline() + "\n" + gen_print() + "\n" + gen_println() + "END MAIN\n"; // must have a main function
+    string code = gen_newline() + "\n" + gen_println() + "END MAIN\n"; // must have a main function
     asmcode_file << code;
 }
 
@@ -562,8 +433,7 @@ void gen_cmp(string _reg1, int _val, string _comment)
 
 void gen_label(string _label)
 {
-    string code = "\
-    " + _label + ":\n";
+    string code = _label + ":\n";
     code_segment_file << code;
     code_segment_lineno++;
 }
@@ -574,8 +444,7 @@ void gen_label(string _label, string _comment)
     {
         _comment = "\t;" + _comment;
     }
-    string code = "\
-    " + _label + ":" +
+    string code = _label + ":" +
                   _comment + "\n";
     code_segment_file << code;
     code_segment_lineno++;
@@ -691,6 +560,13 @@ void gen_or(string _reg1, string _reg2, string _comment)
     code_segment_lineno++;
 }
 
+void gen_endp(string _func_name)
+{
+    string code = _func_name + " ENDP\n";
+    code_segment_file << code;
+    code_segment_lineno++;
+}
+
 void gen_global_var(string _var_name, int _array_size, string _comment)
 {
     if (_comment != "")
@@ -718,7 +594,118 @@ string get_lineno_comment(int _lineno)
     return "line no: " + to_string(_lineno);
 }
 
+string get_lineno_comment(int _start_lineno, int _end_lineno)
+{
+    return "line no: " + to_string(_start_lineno) + "-" + to_string(_end_lineno);
+}
+
 string get_newlabel()
 {
     return "label_" + to_string(label++);
+}
+
+void peephole_optimization(string _source_file_name, string _dest_file_name)
+{
+    int erased_line_count = 0;
+    fstream source_file, dest_file, log_file;
+    source_file.open(_source_file_name, ios::in);
+    dest_file.open(_dest_file_name, ios::out | ios::trunc);
+    log_file.open("optimization_log.txt", ios::out | ios::trunc);
+
+    vector<string> lines;
+    string line;
+    while (getline(source_file, line))
+    {
+        lines.push_back(line);
+    }
+
+    log_file << "Erased lines:\n";
+
+    for (int i = 0; i < lines.size(); i++)
+    {
+        line = line_preprocess(lines[i]);
+
+        string op = line.substr(0, line.find(" "));
+
+        if (op == "ADD" || op == "SUB")
+        {
+            string arg1 = line.substr(line.find(" ") + 1, line.find(",") - line.find(" ") - 1);
+            string arg2 = line.substr(line.find(",") + 1);
+
+            if (arg2 == "0")
+            {
+                log_file << "line " << i + 1 << ": " << line << endl;
+                erased_line_count++;
+                continue;
+            }
+        }
+
+        if (op == "IMUL" || op == "IDIV")
+        {
+            string arg1 = line.substr(line.find(" ") + 1);
+            if (arg1 == "1")
+            {
+                log_file << "line " << i + 1 << ": " << line << endl;
+                erased_line_count++;
+                continue;
+            }
+        }
+
+        if (op == "PUSH" && i < lines.size() - 1)
+        {
+            string next_line = line_preprocess(lines[i + 1]);
+            string next_op = next_line.substr(0, next_line.find(" "));
+            if (next_op == "POP")
+            {
+                string arg1 = line.substr(line.find(" ") + 1);
+                string next_arg1 = next_line.substr(next_line.find(" ") + 1);
+                if (arg1 == next_arg1)
+                {
+                    i++;
+                    log_file << "line " << i << ": " << line << endl;
+                    log_file << "line " << i + 1 << ": " << next_line << endl;
+                    erased_line_count += 2;
+                    continue;
+                }
+            }
+        }
+
+        if (op == "MOV" && i < lines.size() - 1)
+        {
+            string next_line = line_preprocess(lines[i + 1]);
+            string next_op = next_line.substr(0, next_line.find(" "));
+            if (next_op == "MOV")
+            {
+                string arg1 = line.substr(line.find(" ") + 1, line.find(",") - line.find(" ") - 1);
+                string arg2 = line.substr(line.find(",") + 2);
+                string next_arg1 = next_line.substr(next_line.find(" ") + 1, next_line.find(",") - next_line.find(" ") - 1);
+                string next_arg2 = next_line.substr(next_line.find(",") + 2);
+
+                if (arg1 == next_arg2 && arg2 == next_arg1)
+                {
+                    dest_file << lines[i] << endl;
+                    i++;
+                    log_file << "line " << i + 1 << ": " << next_line << endl;
+                    erased_line_count += 1;
+                    continue;
+                }
+            }
+        }
+
+        dest_file << lines[i] << endl;
+    }
+    log_file << "\nErased line count: " << erased_line_count << endl;
+    source_file.close();
+    dest_file.close();
+}
+
+string line_preprocess(string _line)
+{
+    _line.erase(0, _line.find_first_not_of(" \t"));
+    if (_line.find(";") != string::npos)
+    {
+        _line.erase(_line.find(";"));
+    }
+    _line.erase(_line.find_last_not_of(" \t") + 1);
+    return _line;
 }

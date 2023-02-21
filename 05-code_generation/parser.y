@@ -47,7 +47,8 @@
 	bool is_rel_exp = false;
 	int current_func_base_offset = 0;
 	int array_index = -1; // -1 means not array index
-	string input_file_name, error_file_name, asmcode_file_name, code_segment_file_name;
+	SymbolInfo* last_expression; // for if statements
+	string input_file_name, error_file_name, asmcode_file_name, optimized_asmcode_file_name, code_segment_file_name;
 	ofstream error_file;
 	SymbolTable symbol_table;
 	vector<SymbolInfo*> var_decl_list; 
@@ -198,7 +199,7 @@
 
 %type <SymbolInfo*> rel_expression logic_expression statement statements compound_statement
 %type <SymbolInfo*> variable
-%type <SymbolInfo*> marker1 marker2 
+%type <SymbolInfo*> marker1 marker2 marker3
 
 %token IF WHILE FOR RETURN INT FLOAT VOID LPAREN LCURL RCURL LTHIRD RTHIRD SEMICOLON COMMA PRINTLN 
 %token <SymbolInfo*> ID CONST_INT CONST_FLOAT
@@ -226,18 +227,19 @@ start :
 	program
 	{
 		int lineno = 1;
-		asmcode_file << "\n.CODE\n\n";
+		asmcode_file << "\n.CODE\n";
 		code_segment_file.seekg(0, ios::beg);
 		string line;
 		while(getline(code_segment_file, line))
 		{
-			// cout<<"lineno: "<<lineno<<" "<<jumping_label[lineno]<<endl;
 			asmcode_file << line + (jumping_label[lineno] == ""?"":" "+jumping_label[lineno]) << endl;
 			lineno++;
 		}
 		gen_ending_code();
 		code_segment_file.close();
 		asmcode_file.close();
+
+		peephole_optimization(asmcode_file_name, optimized_asmcode_file_name);
 	}
 	;
 
@@ -353,8 +355,7 @@ func_definition :
 	compound_statement
 	{
 		gen_func_ending_code(is_main_func, func_params.size());
-		gen_code($2->get_lexeme() + " ENDP");
-		gen_code("");
+		gen_endp($2->get_lexeme());
 		func_params.clear();
 		is_global_scope = true;
 		if(is_main_func)
@@ -398,8 +399,7 @@ func_definition :
 	compound_statement
 	{
 		gen_func_ending_code(is_main_func, 0);
-		gen_code($2->get_lexeme() + " ENDP");
-		gen_code("");
+		gen_endp($2->get_lexeme());
 		is_global_scope = true;
 		if(is_main_func)
 		{
@@ -447,8 +447,6 @@ compound_statement :
 		symbol_table.enter_scope();
 		symbol_table.get_current_scope()->set_current_offset(prev_scope_current_offset);
 		symbol_table.get_current_scope()->set_base_offset(prev_scope_current_offset);
-		// cout<<"entering scope\n";
-		// cout<<symbol_table<<endl;
 
 		// inserting parameters of function definition
 		if(is_func_compound_statement)
@@ -479,13 +477,10 @@ compound_statement :
 		backpatch($3->get_nextlist(), $4->get_lexeme());
 		$$->set_nextlist(vector<int>());
 
-		// cout<<"exiting scope\n";
-		// cout<<symbol_table<<endl;
-
 		// popping stack space for declared variables in this scope
 		if(symbol_table.get_current_scope()->get_current_offset() - symbol_table.get_current_scope()->get_base_offset() > 0)
 		{
-			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - symbol_table.get_current_scope()->get_base_offset());
+			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - symbol_table.get_current_scope()->get_base_offset(), get_lineno_comment(@3.first_line, @3.last_line));
 		}
 		symbol_table.exit_scope();
 	}
@@ -537,8 +532,8 @@ var_declaration :
 		}
 		if(!is_global_scope)
 		{
-			gen_mov("SP", "BP");
-			gen_sub("SP", symbol_table.get_current_scope()->get_current_offset());
+			gen_mov("SP", "BP", get_lineno_comment(@3.first_line));
+			gen_sub("SP", symbol_table.get_current_scope()->get_current_offset(), get_lineno_comment(@3.first_line));
 		}
 		var_decl_list.clear();
 	}
@@ -646,27 +641,27 @@ statement :
 		gen_code("JMP "+$7->get_lexeme(), get_lineno_comment(@1.first_line));
 	}
 	| 
-	IF LPAREN expression RPAREN marker1 statement
+	IF LPAREN expression marker3 RPAREN marker1 statement
 	{
 
-		backpatch($3->get_truelist(), $5->get_lexeme());
-		$$ = (new SymbolInfo())->set_nextlist(merge($3->get_falselist(), $6->get_nextlist()));
+		backpatch($3->get_truelist(), $6->get_lexeme());
+		$$ = (new SymbolInfo())->set_nextlist(merge($3->get_falselist(), $7->get_nextlist()));
 	}
 	| 
-	IF LPAREN expression RPAREN marker1 statement ELSE marker2 marker1 statement
+	IF LPAREN expression marker3 RPAREN marker1 statement ELSE marker2 marker1 statement
 	{
 		$$ = new SymbolInfo();
-		backpatch($3->get_truelist(), $5->get_lexeme());
-		backpatch($3->get_falselist(), $9->get_lexeme());
-		$$->set_nextlist(merge(merge($6->get_nextlist(), $8->get_nextlist()), $10->get_nextlist()));
+		backpatch($3->get_truelist(), $6->get_lexeme());
+		backpatch($3->get_falselist(), $10->get_lexeme());
+		$$->set_nextlist(merge(merge($7->get_nextlist(), $9->get_nextlist()), $11->get_nextlist()));
 	}
 	| 
 	WHILE marker1 LPAREN expression
 	{
 		if(!($4->has_jump()))
 		{
-			gen_pop("AX", get_lineno_comment(@2.first_line));
-			gen_cmp("AX", "0", get_lineno_comment(@2.first_line));
+			gen_pop("AX", get_lineno_comment(@1.first_line));
+			gen_cmp("AX", "0", get_lineno_comment(@1.first_line));
 			gen_code("JNE");
 			$4->add_to_truelist(code_segment_lineno);
 			gen_code("JMP");
@@ -687,7 +682,7 @@ statement :
 
 		SymbolInfo* var_info = (SymbolInfo*) symbol_table.lookup($3->get_lexeme());
 
-		gen_mov("DX",var_info->get_address(), get_lineno_comment(@1.first_line));
+		gen_mov("AX",var_info->get_address(), get_lineno_comment(@1.first_line));
 		gen_call("PRINTLN_INT", get_lineno_comment(@1.first_line));
 	}
 	| 
@@ -705,12 +700,12 @@ statement :
 			$2->set_truelist(vector<int>());
 			$2->set_falselist(vector<int>());
 
-			gen_label(label1, get_lineno_comment(@2.first_line));
-			gen_mov("AX", "1", get_lineno_comment(@2.first_line));
-			gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
-			gen_label(label2, get_lineno_comment(@2.first_line));
-			gen_mov("AX", "0", get_lineno_comment(@2.first_line));
-			gen_label(label3, get_lineno_comment(@2.first_line));
+			gen_label(label1, get_lineno_comment(@1.first_line));
+			gen_mov("AX", "1", get_lineno_comment(@1.first_line));
+			gen_code("JMP " + label3, get_lineno_comment(@1.first_line));
+			gen_label(label2, get_lineno_comment(@1.first_line));
+			gen_mov("AX", "0", get_lineno_comment(@1.first_line));
+			gen_label(label3, get_lineno_comment(@1.first_line));
 		}
 		else 
 		{
@@ -719,7 +714,7 @@ statement :
 
 		if(symbol_table.get_current_scope()->get_current_offset() - current_func_base_offset > 0)
 		{
-			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - current_func_base_offset);
+			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - current_func_base_offset, get_lineno_comment(@1.first_line));
 		}
 		gen_func_ending_code(is_main_func, func_params.size());
 		is_global_scope = true;
@@ -729,6 +724,19 @@ marker2 :
 	{
 		gen_code("JMP");
 		$$ = (new SymbolInfo())->add_to_nextlist(code_segment_lineno);
+	}
+	;
+marker3:
+	{
+		if(!(last_expression->has_jump()))
+		{
+			gen_pop("AX");
+			gen_cmp("AX", "0");
+			gen_code("JNE");
+			last_expression->add_to_truelist(code_segment_lineno);
+			gen_code("JMP");
+			last_expression->add_to_falselist(code_segment_lineno);
+		}
 	}
 	;
 expression_statement : 
@@ -793,7 +801,6 @@ variable :
 		{
 			gen_pop("SI", get_lineno_comment(@1.first_line));
 			gen_code("SHL SI, 1", get_lineno_comment(@1.first_line));
-			//assuming the offset is always negative
 			if(!var_info->is_global())
 			{
 				gen_sub("SI", abs(var_info->get_start_offset()), get_lineno_comment(@1.first_line));
@@ -808,7 +815,7 @@ expression :
 	logic_expression	
 	{
 		$$ = $1;
-
+		last_expression = $$;
 	}
 	| 
 	variable ASSIGNOP logic_expression 	
@@ -866,12 +873,14 @@ expression :
 			}
 			gen_push("AX", get_lineno_comment(@2.first_line));
 		}
+		last_expression = $$;
 	}
 	|
 	error
 	{
 		yyclearin;
 		$$ = new SymbolInfo();
+		last_expression = $$;
 	}
 	;
 			
@@ -906,8 +915,8 @@ logic_expression :
 		{
 			if(!($5->has_jump()))
 			{
-				gen_pop("BX", get_lineno_comment(@2.first_line));
-				gen_cmp("BX", "0", get_lineno_comment(@2.first_line));
+				gen_pop("AX", get_lineno_comment(@2.first_line));
+				gen_cmp("AX", "0", get_lineno_comment(@2.first_line));
 				gen_code("JNE");
 				$5->add_to_truelist(code_segment_lineno);
 				gen_code("JMP");
@@ -965,15 +974,15 @@ rel_expression	:
 				$3->set_falselist(vector<int>());
 
 				gen_label(label1, get_lineno_comment(@2.first_line));
-				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
+				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
 				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
 				gen_label(label2, get_lineno_comment(@2.first_line));
-				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
+				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
 				gen_label(label3, get_lineno_comment(@2.first_line));
 			}
 			else 
 			{
-				gen_pop("BX", get_lineno_comment(@2.first_line));
+				gen_pop("AX", get_lineno_comment(@2.first_line));
 			}
 
 			if($1->has_jump())
@@ -988,18 +997,18 @@ rel_expression	:
 				$1->set_falselist(vector<int>());
 
 				gen_label(label1, get_lineno_comment(@2.first_line));
-				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
 				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
 				gen_label(label2, get_lineno_comment(@2.first_line));
-				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
 				gen_label(label3, get_lineno_comment(@2.first_line));
 			}
 			else 
 			{
-				gen_pop("AX", get_lineno_comment(@2.first_line));
+				gen_pop("BX", get_lineno_comment(@2.first_line));
 			}
 		
-			gen_cmp("AX", "BX", get_lineno_comment(@2.first_line));
+			gen_cmp("BX", "AX", get_lineno_comment(@2.first_line));
 			if($2->get_lexeme() == "<")
 			{
 				gen_code("JL");
@@ -1058,15 +1067,15 @@ simple_expression :
 				$3->set_falselist(vector<int>());
 
 				gen_label(label1, get_lineno_comment(@2.first_line));
-				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
+				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
 				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
 				gen_label(label2, get_lineno_comment(@2.first_line));
-				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
+				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
 				gen_label(label3, get_lineno_comment(@2.first_line));
 			}
 			else 
 			{
-				gen_pop("BX", get_lineno_comment(@2.first_line));
+				gen_pop("AX", get_lineno_comment(@2.first_line));
 			}
 
 			if($1->has_jump())
@@ -1081,15 +1090,15 @@ simple_expression :
 				$1->set_falselist(vector<int>());
 
 				gen_label(label1, get_lineno_comment(@2.first_line));
-				gen_mov("AX", "1", get_lineno_comment(@2.first_line));
+				gen_mov("BX", "1", get_lineno_comment(@2.first_line));
 				gen_code("JMP " + label3, get_lineno_comment(@2.first_line));
 				gen_label(label2, get_lineno_comment(@2.first_line));
-				gen_mov("AX", "0", get_lineno_comment(@2.first_line));
+				gen_mov("BX", "0", get_lineno_comment(@2.first_line));
 				gen_label(label3, get_lineno_comment(@2.first_line));
 			}
 			else 
 			{
-				gen_pop("AX", get_lineno_comment(@2.first_line));
+				gen_pop("BX", get_lineno_comment(@2.first_line));
 			}
 
 			if($2->get_lexeme() == "+")
@@ -1099,7 +1108,8 @@ simple_expression :
 			}
 			else if($2->get_lexeme() == "-")
 			{
-				gen_sub("AX", "BX", get_lineno_comment(@2.first_line));
+				gen_sub("BX", "AX", get_lineno_comment(@2.first_line));
+				gen_mov("AX", "BX", get_lineno_comment(@2.first_line));
 				gen_push("AX", get_lineno_comment(@2.first_line));
 			}
 		}
@@ -1336,7 +1346,8 @@ factor	:
 	{
 		$1->set_data_type(DataType::INT);
 		$$ = $1;
-		gen_push(stoi($1->get_lexeme()), get_lineno_comment(@1.first_line));
+		gen_mov("AX", stoi($1->get_lexeme()), get_lineno_comment(@1.first_line));
+		gen_push("AX", get_lineno_comment(@1.first_line));
 	}
 	| 
 	CONST_FLOAT
@@ -1421,7 +1432,6 @@ arguments :
 
 %%
 
-// Epilogue (C code).
 
 void yyerror (const YYLTYPE* loc, yyscan_t scanner, const char *msg, ...)
 {
@@ -1448,6 +1458,7 @@ int main(int argc, char const *argv[])
 	input_file_name = argv[1];
 	error_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_error.txt";
 	asmcode_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_asmcode.asm";
+	optimized_asmcode_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_optimized_asmcode.asm";
 	code_segment_file_name = input_file_name.substr(0,input_file_name.size()-2) + "_code_segment.asm";
 
 	error_file.open(error_file_name);

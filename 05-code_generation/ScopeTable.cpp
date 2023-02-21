@@ -1,5 +1,4 @@
 #include "ScopeTable.hpp"
-#include "ParseTree.hpp"
 
 #include <iostream>
 using namespace std;

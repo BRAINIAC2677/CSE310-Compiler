@@ -12,8 +12,6 @@ extern fstream code_segment_file;
 
 void gen_starting_code();
 string gen_newline();
-string gen_2scomp();
-string gen_print();
 string gen_println();
 void gen_ending_code();
 void gen_func_starting_code(string _func_name);
@@ -58,7 +56,12 @@ void gen_and(string _reg1, string _reg2);
 void gen_and(string _reg1, string _reg2, string _comment);
 void gen_or(string _reg1, string _reg2);
 void gen_or(string _reg1, string _reg2, string _comment);
+void gen_endp(string _func_name);
 
 void gen_global_var(string _var_name, int _size, string _comment);
 string get_lineno_comment(int _lineno);
+string get_lineno_comment(int _start_lineno, int _end_lineno);
 string get_newlabel();
+
+void peephole_optimization(string _source_file_name, string _dest_file_name);
+string line_preprocess(string _line);

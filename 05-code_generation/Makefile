@@ -6,36 +6,47 @@ CXX = g++
 all: main
 
 parser.c parser.h: parser.y 
-	bison --header -o parser.c $<
+	@ bison --header -o parser.c $<
+	@echo "generated parser.c and parser.h"
 
 scanner.c scanner.h: scanner.l
-	flex -o scanner.c --header=scanner.h $<
+	@ flex -o scanner.c --header=scanner.h $<
+	@echo "generated scanner.c and scanner.h"
 
 parser.o: parser.c scanner.h 
-	$(CXX) -w -c -o $@ $<
+	@ $(CXX) -w -c -o $@ $<
+	@echo "compiled parser.c"
 
 scanner.o: scanner.c parser.h
-	$(CXX) -w -c -o $@ $<
+	@ $(CXX) -w -c -o $@ $<
+	@echo "compiled scanner.c"
 
 SymbolInfo.o: SymbolInfo.cpp
-	$(CXX) -w -c -o $@ $<
+	@ $(CXX) -w -c -o $@ $<
+	@echo "compiled SymbolInfo.cpp"
 
 ScopeTable.o: ScopeTable.cpp
-	$(CXX) -w -c -o $@ $<
+	@ $(CXX) -w -c -o $@ $<
+	@echo "compiled ScopeTable.cpp"
 
 SymbolTable.o: SymbolTable.cpp
-	$(CXX) -w -c -o $@ $<
+	@ $(CXX) -w -c -o $@ $<
+	@echo "compiled SymbolTable.cpp"
 
 icg_utils.o: icg_utils.cpp
-	$(CXX) -w -c -o $@ $<
+	@ $(CXX) -w -c -o $@ $<
+	@echo "compiled icg_utils.cpp"
 
 main: parser.o scanner.o SymbolTable.o  SymbolInfo.o ScopeTable.o icg_utils.o 
-	$(CXX) -o $@ $^ 
+	@ $(CXX) -o $@ $^ 
+	@echo "linked all the object files"
 
 run: main
-	./$< input.c  
+	@ read -p "Enter the input file name: " input; \
+	./main $$input
+	@echo "ran the program"
 
 clean:
-	rm -f main parser.c parser.h scanner.c scanner.h *.o *.txt *.output *.asm
-
+	@ rm -f main parser.c parser.h scanner.c scanner.h *.o *.txt *.output *.asm
+	@echo "cleaned up"
 
