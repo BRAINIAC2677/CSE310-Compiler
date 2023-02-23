@@ -717,7 +717,6 @@ statement :
 			gen_add("SP", symbol_table.get_current_scope()->get_current_offset() - current_func_base_offset, get_lineno_comment(@1.first_line));
 		}
 		gen_func_ending_code(is_main_func, func_params.size());
-		is_global_scope = true;
 	}
 	;
 marker2 : 
@@ -1189,13 +1188,13 @@ term :
 			}
 			else if($2->get_lexeme() == "/")
 			{
-				gen_xor("DX", "DX", get_lineno_comment(@2.first_line));
+				gen_code("CWD", get_lineno_comment(@2.first_line));
 				gen_idiv("BX", get_lineno_comment(@2.first_line));
 				gen_push("AX", get_lineno_comment(@2.first_line));
 			}
 			else if($2->get_lexeme() == "%")
 			{
-				gen_xor("DX", "DX", get_lineno_comment(@2.first_line));
+				gen_code("CWD",get_lineno_comment(@2.first_line));
 				gen_idiv("BX", get_lineno_comment(@2.first_line));
 				gen_push("DX", get_lineno_comment(@2.first_line));
 			}

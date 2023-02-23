@@ -13,13 +13,13 @@ void gen_starting_code()
     string code = "\
 .MODEL SMALL\n\
 \n\
-.STACK 100H\n\
+.STACK 1000H\n\
 \n\
 .DATA\n\
 \n\
 CR EQU 0DH\n\
 LF EQU 0AH\n\
-number DB '00000$'\n\
+NUMBER_PRINTLN DB '00000$'\n\
 NEWLINE DB CR, LF, '$'\n";
     asmcode_file << code;
 }
@@ -49,7 +49,7 @@ PRINTLN_INT PROC  ;print what is in ax\n\
     PUSH CX\n\
     PUSH DX\n\
     PUSH SI\n\
-    LEA SI,NUMBER\n\
+    LEA SI,NUMBER_PRINTLN\n\
     MOV BX,10\n\
     ADD SI,4\n\
     CMP AX,0\n\
@@ -626,30 +626,6 @@ void peephole_optimization(string _source_file_name, string _dest_file_name)
         line = line_preprocess(lines[i]);
 
         string op = line.substr(0, line.find(" "));
-
-        if (op == "ADD" || op == "SUB")
-        {
-            string arg1 = line.substr(line.find(" ") + 1, line.find(",") - line.find(" ") - 1);
-            string arg2 = line.substr(line.find(",") + 1);
-
-            if (arg2 == "0")
-            {
-                log_file << "line " << i + 1 << ": " << line << endl;
-                erased_line_count++;
-                continue;
-            }
-        }
-
-        if (op == "IMUL" || op == "IDIV")
-        {
-            string arg1 = line.substr(line.find(" ") + 1);
-            if (arg1 == "1")
-            {
-                log_file << "line " << i + 1 << ": " << line << endl;
-                erased_line_count++;
-                continue;
-            }
-        }
 
         if (op == "PUSH" && i < lines.size() - 1)
         {
