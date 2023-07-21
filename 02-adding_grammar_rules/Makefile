@@ -18,7 +18,9 @@ main : scanner.o parser.o
 	$(CXX) -o $@ $^
 
 run: main
-	./$< input.c 
+	@ read -p "Enter the input file name: " input; \
+	./main $$input
+	@echo "ran the program"
 
 clean:
 	rm -f main scanner.c scanner.h parser.c parser.h *.o *.txt *.output

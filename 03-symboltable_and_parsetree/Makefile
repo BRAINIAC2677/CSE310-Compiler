@@ -33,7 +33,9 @@ main: parser.o scanner.o SymbolTable.o  SymbolInfo.o ScopeTable.o ParseTree.o
 	$(CXX) -o $@ $^ 
 
 run: main
-	./$< input.c  
+	@ read -p "Enter the input file name: " input; \
+	./main $$input
+	@echo "ran the program"
 
 clean:
 	rm -f main parser.c parser.h scanner.c scanner.h *.o *.txt *.output

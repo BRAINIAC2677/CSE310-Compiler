@@ -1,0 +1,5 @@
+Line 3:12 | Error: syntax error, unexpected ADDOP, expecting COMMA or RPAREN
+Line 9:7 | Error: syntax error, unexpected ADDOP, expecting SEMICOLON or COMMA
+Line 10:9 | Error: syntax error, unexpected ASSIGNOP
+Line 11:1 | Error: syntax error. unrecognized character
+Line# 18: Too many arguments to function 'var'

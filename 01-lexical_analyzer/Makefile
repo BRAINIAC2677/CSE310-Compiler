@@ -8,8 +8,10 @@ scanner.c: scanner.l
 scanner : scanner.c 
 	$(CXX) -o $@ $<
 
-run: scanner
-	./$< input.c 
+run:scanner 
+	@ read -p "Enter the input file name: " input; \
+	./scanner $$input
+	@echo "ran the program"
 
 clean:
 	rm -f scanner scanner.c output.txt 
