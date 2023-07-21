@@ -5,7 +5,7 @@
 - [x] [Assignment 2](/assignment_specs/offline-2.pdf)
 - [x] [Assignment 3](/assignment_specs/offline-3.pdf)
 
-_*But I have broken the assignments into 5 stages and done some extensions in the last stage.*_
+_*But I have broken the assignments into 5 stages and done some extensions in the last stage. You can run the generated assembly of stage 5 and 6 in a 8086 assembly emulator.*_
 
 ## Stages 
 - [x] [Lexical Analysis](/01-lexical_analyzer/)
@@ -17,20 +17,20 @@ _*But I have broken the assignments into 5 stages and done some extensions in th
 
 ## How to run on Linux
 - Install `flex` and `bison` using 
-> `sudo apt install flex bison`
+> sudo apt install flex bison
 - Install `gcc` using
-> `sudo apt install gcc`
+> sudo apt install gcc
 - Clone the repo using git clone or download the zip file.
 - Go to the directory of the stage you want to run.
 - Run the following commands
-> `make run`  
+> make run  
 - After compilation you will be prompted to enter the input file name. Check out the [example input files](/example_ios/). 
 - The input file should be 
     - In the same directory as the stage directory
     - Have the syntax supported by this [context free grammar](/assets/cfg.pdf)
 - The output will be generated in the same directory as the stage directory.
 - To clean the directory run
-> `make clean`
+> make clean
 
 ## Example Input/Output 
 - Lexical Analysis
